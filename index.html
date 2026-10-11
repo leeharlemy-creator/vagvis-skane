@@ -3498,7 +3498,7 @@ function renderRoutes(routes) {
       lastSource: 'mock',
 
       async getDepartures(stopName = 'Malmö C') {
-        if (CONFIG.dataMode === 'live' ) {
+        if (CONFIG.dataMode === 'live') {
           try {
             const ctrl = new AbortController();
             const timer = setTimeout(() => ctrl.abort(), 4000);
