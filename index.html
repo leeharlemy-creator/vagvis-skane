@@ -589,6 +589,7 @@
       .top-bar { padding-top: max(16px, env(safe-area-inset-top)); }
       .bottom-sheet { padding-bottom: max(8px, env(safe-area-inset-bottom)); }
     }
+    .trip-pill { display:inline-flex; align-items:center; gap:5px; padding:4px 10px; border-radius:8px; font-size:12px; font-weight:700; color:#fff; }
   </style>
 </head>
 <body>
@@ -2505,7 +2506,7 @@
               <span style="color:#22c55e;font-weight:700;">●</span> ${from.name.split(',')[0]}<br>
               <span style="color:#ef4444;font-weight:700;">●</span> ${to.name.split(',')[0]}
             </div>
-            <div style="font-size:12px;font-weight:700;color:var(--text-muted);margin-bottom:10px;text-transform:uppercase;letter-spacing:0.4px;">Options (sans clé API)</div>
+            <div style="font-size:12px;font-weight:700;color:var(--text-muted);margin-bottom:10px;text-transform:uppercase;letter-spacing:0.4px;">Options</div>
 
             <div class="route-card" onclick="drawCalculatedRoute(${endLat},${endLng},'walk',${wMin})">
               <div class="route-top"><div class="route-duration">${wMin} min</div><div class="route-price">Gratuit</div></div>
@@ -2517,23 +2518,164 @@
               <div class="route-modes"><span class="mode-pill bike"><i class="fas fa-bicycle"></i> Vélo</span></div>
               <div class="route-meta"><span>${bKm < 1 ? Math.round(bKm*1000)+' m' : bKm.toFixed(1)+' km'}</span><span>OSRM</span></div>
             </div>
-            <div class="route-card" onclick="currentMode='bus';searchAndRoute('${to.name.split(',')[0].replace(/'/g,"\\'")}');">
+            <div id="transitTrips"><div class="route-card" onclick="currentMode='bus';searchAndRoute('${to.name.split(',')[0].replace(/'/g,"\\'")}');">
               <div class="route-top"><div class="route-duration">~${busMin} min</div><div class="route-price">~29–39 kr</div></div>
               <div class="route-modes"><span class="mode-pill bus"><i class="fas fa-bus"></i> Bus / train</span></div>
               <div class="route-meta"><span>Skånetrafiken (estim.)</span></div>
-            </div>
+            </div></div>
             <div style="font-size:11px;color:var(--text-muted);margin-top:8px;line-height:1.4;">
               Marche & vélo : tracé réel (OSRM).<br>
-              Bus/train : estimation — horaires officiels avec clé Trafiklab.
+              Bus/train : horaires réels Trafiklab (ResRobot).
             </div>
           </div>`;
       }
+
+      loadTransitTrips(startLat, startLng, endLat, endLng, from, to);
 
       // Restaurer position GPS réelle pour la suite
       userLat = prevLat;
       userLng = prevLng;
       if (userMarker) userMarker.setLatLng([prevLat, prevLng]);
       showToast('Itinéraire calculé');
+    }
+
+    // ========== VRAIS TRAJETS BUS / TRAIN (ResRobot via /api/trip) ==========
+    const TRIP_STYLE = {
+      bus:   { icon: 'fa-bus',        color: '#2563eb' },
+      train: { icon: 'fa-train',      color: '#dc2626' },
+      metro: { icon: 'fa-subway',     color: '#e11d48' },
+      tram:  { icon: 'fa-train-tram', color: '#0d9488' },
+      ferry: { icon: 'fa-ship',       color: '#0284c7' },
+      other: { icon: 'fa-route',      color: '#64748b' },
+      walk:  { icon: 'fa-walking',    color: '#16a34a' }
+    };
+    let tripCtx = null;
+
+    function escHtml(s) {
+      return String(s == null ? '' : s).replace(/[&<>"']/g, c => (
+        { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]
+      ));
+    }
+    function fmtDuree(min) {
+      if (min >= 60) {
+        const h = Math.floor(min / 60), m = min % 60;
+        return m ? `${h} h ${String(m).padStart(2, '0')}` : `${h} h`;
+      }
+      return `${min} min`;
+    }
+    function fmtMetres(m) {
+      return m >= 1000 ? `${(m / 1000).toFixed(1)} km` : `${Math.round(m)} m`;
+    }
+
+    async function loadTransitTrips(startLat, startLng, endLat, endLng, from, to) {
+      const zone = document.getElementById('transitTrips');
+      if (!zone) return;
+      const note = (msg) => zone.insertAdjacentHTML('beforeend',
+        `<div style="font-size:11px;color:var(--text-muted);margin-top:6px;line-height:1.4;">${msg} (estimation affichée)</div>`);
+      const ctrl = new AbortController();
+      const timer = setTimeout(() => ctrl.abort(), 12000);
+      try {
+        const res = await fetch(`/api/trip?from=${startLat},${startLng}&to=${endLat},${endLng}`, { signal: ctrl.signal });
+        clearTimeout(timer);
+        const data = await res.json();
+        if (data && data.code === 'SVC_NO_RESULT') { note('Aucun trajet en transports trouvé pour le moment.'); return; }
+        if (!res.ok || !data || data.error || !(data.trips && data.trips.length)) {
+          note('Horaires bus/train indisponibles pour le moment.');
+          return;
+        }
+        tripCtx = { from, to, trips: data.trips };
+        renderTransitTrips(zone, data);
+      } catch (e) {
+        clearTimeout(timer);
+        note('Horaires bus/train indisponibles pour le moment.');
+      }
+    }
+
+    function renderTransitTrips(zone, data) {
+      const cards = data.trips.map((t, i) => {
+        const pills = t.legs.map(l => {
+          if (l.kind === 'walk') {
+            if (!l.distM || l.distM < 50) return '';
+            return `<span class="trip-pill" style="background:${TRIP_STYLE.walk.color};"><i class="fas fa-walking"></i> ${fmtMetres(l.distM)}</span>`;
+          }
+          const st = TRIP_STYLE[l.mode] || TRIP_STYLE.other;
+          return `<span class="trip-pill" style="background:${st.color};"><i class="fas ${st.icon}"></i> ${escHtml(l.label)}</span>`;
+        }).join('');
+        return `
+          <div class="route-card trip-card" data-trip="${i}" onclick="showTrip(${i})">
+            <div class="route-top">
+              <div class="route-duration">${escHtml(t.dep)} → ${escHtml(t.arr)}</div>
+              <div class="route-price">${fmtDuree(t.durationMin)}</div>
+            </div>
+            <div class="route-modes">${pills}</div>
+            <div class="route-meta">
+              <span><i class="fas fa-exchange-alt"></i> ${t.transfers} corr.</span>
+              <span><i class="fas fa-walking"></i> ${fmtMetres(t.walkM)}</span>
+            </div>
+            <div class="trip-detail" id="tripDetail${i}" style="display:none;"></div>
+          </div>`;
+      }).join('');
+      zone.innerHTML = `
+        <div style="font-size:12px;font-weight:700;color:var(--text-muted);margin:6px 0 10px;text-transform:uppercase;letter-spacing:0.4px;">Bus / train — horaires réels</div>
+        ${cards}
+        <div style="font-size:11px;color:var(--text-muted);margin-top:4px;">Données : Trafiklab.se (ResRobot)</div>`;
+    }
+
+    function tripStep(st, time, title, desc) {
+      return `<div class="step-item">
+        <div class="step-icon" style="background:${st.color}"><i class="fas ${st.icon}"></i></div>
+        <div class="step-content">
+          <div class="step-title">${time ? `<span style="color:var(--text-muted);font-weight:600;margin-right:6px;">${escHtml(time)}</span>` : ''}${title}</div>
+          <div class="step-desc">${desc}</div>
+        </div>
+      </div>`;
+    }
+
+    function showTrip(i) {
+      if (!tripCtx || !tripCtx.trips[i]) return;
+      const t = tripCtx.trips[i];
+      document.querySelectorAll('.trip-card').forEach(c => c.classList.remove('selected'));
+      document.querySelectorAll('.trip-detail').forEach(d => { d.style.display = 'none'; });
+      const card = document.querySelector(`.trip-card[data-trip="${i}"]`);
+      if (card) card.classList.add('selected');
+
+      const det = document.getElementById('tripDetail' + i);
+      if (det) {
+        det.style.display = 'block';
+        det.innerHTML = '<div style="height:10px;"></div>' + t.legs.map(l => {
+          if (l.kind === 'walk') {
+            const label = l.transfer ? 'Correspondance à pied' : 'Marcher';
+            const vers = l.to && l.to.name ? `jusqu’à ${escHtml(l.to.name)} · ` : '';
+            const dist = l.distM ? `${fmtMetres(l.distM)} · ` : '';
+            return tripStep(TRIP_STYLE.walk, l.from.time, label, `${vers}${dist}${l.minutes} min`);
+          }
+          const st = TRIP_STYLE[l.mode] || TRIP_STYLE.other;
+          const arrets = l.stops ? `${l.stops} arrêt${l.stops > 1 ? 's' : ''} · ` : '';
+          return tripStep(
+            st, l.from.time,
+            `${escHtml(l.label)}${l.direction ? ' → ' + escHtml(l.direction) : ''}`,
+            `${escHtml(l.from.name)} (${escHtml(l.from.time)}) → ${escHtml(l.to.name)} (${escHtml(l.to.time)}) · ${arrets}${l.minutes} min`
+          );
+        }).join('');
+      }
+
+      routeLayer.clearLayers();
+      const points = [];
+      t.legs.forEach(l => {
+        const st = TRIP_STYLE[l.kind === 'walk' ? 'walk' : l.mode] || TRIP_STYLE.other;
+        L.polyline(l.path, {
+          color: st.color, weight: l.kind === 'walk' ? 4 : 6, opacity: 0.9,
+          dashArray: l.kind === 'walk' ? '6 8' : null, lineJoin: 'round'
+        }).addTo(routeLayer);
+        l.path.forEach(p => points.push(p));
+        if (l.kind === 'transit') {
+          L.circleMarker([l.from.lat, l.from.lng], { radius: 5, color: st.color, fillColor: '#ffffff', fillOpacity: 1, weight: 3 }).addTo(routeLayer);
+        }
+      });
+      const f = tripCtx.from, e = tripCtx.to;
+      L.circleMarker([f.lat, f.lng], { radius: 9, color: '#22c55e', fillColor: '#22c55e', fillOpacity: 0.8, weight: 2 }).addTo(routeLayer);
+      L.circleMarker([e.lat, e.lng], { radius: 9, color: '#ef4444', fillColor: '#ef4444', fillOpacity: 0.8, weight: 2 }).addTo(routeLayer);
+      if (points.length) map.fitBounds(L.latLngBounds(points), { padding: [60, 60] });
     }
 
     function searchPlaces(query) {
@@ -2612,15 +2754,16 @@
             <div class="route-modes"><span class="mode-pill bike"><i class="fas fa-bicycle"></i> Vélo</span></div>
             <div class="route-meta"><span>${dist < 1 ? Math.round(dist*1000)+' m' : dist.toFixed(1)+' km'}</span></div>
           </div>
-          <div class="route-card" onclick="goToAddress(${lat},${lng},'bus',${busMin})">
+          <div id="transitTrips"><div class="route-card" onclick="goToAddress(${lat},${lng},'bus',${busMin})">
             <div class="route-top"><div class="route-duration">${busMin} min</div><div class="route-price">25–34 kr</div></div>
             <div class="route-modes"><span class="mode-pill bus"><i class="fas fa-bus"></i> Bus</span><span class="mode-pill walk"><i class="fas fa-walking"></i> Marche</span></div>
-          </div>
+          </div></div>
           <div class="route-card" onclick="goToAddress(${lat},${lng},'walk',${walkMin})">
             <div class="route-top"><div class="route-duration">${walkMin} min</div><div class="route-price">Gratuit</div></div>
             <div class="route-modes"><span class="mode-pill walk"><i class="fas fa-walking"></i> Marche</span></div>
           </div>
         </div>`;
+      loadTransitTrips(userLat, userLng, lat, lng, { name: 'Ma position', lat: userLat, lng: userLng }, { name: name, lat: lat, lng: lng });
     }
 
     async function goToAddress(lat, lng, mode, minutes) {
