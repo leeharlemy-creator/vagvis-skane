@@ -41,8 +41,11 @@ function raccourcir(texte, max = 14) {
   return t.length > max ? t.slice(0, max - 1) + '…' : t;
 }
 
+// Selon les réponses, Product est un objet ou une liste d'objets
+const produit = (leg) => (Array.isArray(leg.Product) ? leg.Product[0] : leg.Product) || {};
+
 function modeDe(leg) {
-  const p = leg.Product || {};
+  const p = produit(leg);
   const t = [p.catOutL, p.catOutS, p.name, leg.category].join(' ').toLowerCase();
   if (/tunnelbana|metro|subway/.test(t)) return 'metro';
   if (/spårvagn|tram|lokalbana/.test(t)) return 'tram';
@@ -53,7 +56,7 @@ function modeDe(leg) {
 }
 
 function etiquetteDe(leg, mode) {
-  const p = leg.Product || {};
+  const p = produit(leg);
   if (mode === 'bus') return `Bus ${p.num || ''}`.trim();
   if (mode === 'train') {
     const op = p.operator || '';
