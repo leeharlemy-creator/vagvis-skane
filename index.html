@@ -2053,30 +2053,41 @@
     // ========== CALCUL D'ITINÉRAIRE (OSRM public) ==========
     async function fetchOsrmRoute(fromLat, fromLng, toLat, toLng, profile = 'foot') {
       // profile: foot | bike | driving
-      const url = `https://router.project-osrm.org/route/v1/${profile}/${fromLng},${fromLat};${toLng},${toLat}?overview=full&geometries=geojson&steps=true`;
-      try {
-        const res = await fetch(url);
-        if (!res.ok) return null;
-        const data = await res.json();
-        if (data.code !== 'Ok' || !data.routes?.length) return null;
-        const route = data.routes[0];
-        const coords = route.geometry.coordinates.map(c => [c[1], c[0]]); // [lat,lng]
-        const steps = (route.legs?.[0]?.steps || []).map(s => ({
-          instruction: s.maneuver?.type || '',
-          name: s.name || '',
-          distance: s.distance,
-          duration: s.duration
-        })).filter(s => s.distance > 15 || s.name);
-        return {
-          coords,
-          distanceM: route.distance,
-          durationS: route.duration,
-          steps
-        };
-      } catch (e) {
-        console.warn('OSRM indisponible', e);
-        return null;
+      // Le serveur de démonstration OSRM ne connaît que la voiture : pour la marche et le vélo,
+      // on utilise les serveurs OpenStreetMap (FOSSGIS) qui ont de vrais profils piéton et vélo.
+      const fin = `${fromLng},${fromLat};${toLng},${toLat}?overview=full&geometries=geojson&steps=true`;
+      const vitesse = profile === 'bike' ? 4.2 : profile === 'foot' ? 1.4 : null; // m/s si repli
+      const serveurs = profile === 'foot'
+        ? ['https://routing.openstreetmap.de/routed-foot/route/v1/driving/', 'https://router.project-osrm.org/route/v1/foot/']
+        : profile === 'bike'
+          ? ['https://routing.openstreetmap.de/routed-bike/route/v1/driving/', 'https://router.project-osrm.org/route/v1/bike/']
+          : ['https://router.project-osrm.org/route/v1/driving/'];
+      for (let k = 0; k < serveurs.length; k++) {
+        try {
+          const res = await fetch(serveurs[k] + fin);
+          if (!res.ok) continue;
+          const data = await res.json();
+          if (data.code !== 'Ok' || !data.routes?.length) continue;
+          const route = data.routes[0];
+          const coords = route.geometry.coordinates.map(c => [c[1], c[0]]); // [lat,lng]
+          const steps = (route.legs?.[0]?.steps || []).map(s => ({
+            instruction: s.maneuver?.type || '',
+            name: s.name || '',
+            distance: s.distance,
+            duration: s.duration
+          })).filter(s => s.distance > 15 || s.name);
+          return {
+            coords,
+            distanceM: route.distance,
+            // serveur de secours = durée voiture : on recalcule à partir de la distance
+            durationS: (k > 0 && vitesse) ? route.distance / vitesse : route.duration,
+            steps
+          };
+        } catch (e) {
+          console.warn('Itinéraire indisponible sur', serveurs[k], e);
+        }
       }
+      return null;
     }
 
     function formatDistance(m) {
@@ -2494,8 +2505,8 @@
         L.polyline([[startLat, startLng], [endLat, endLng]], { color: '#5eb6f0', weight: 4, dashArray: '8 8', opacity: 0.7 }).addTo(routeLayer);
       }
 
-      const wMin = walkInfo ? Math.max(1, Math.round(walkInfo.durationSec / 60)) : walkMin;
-      const bMin = bikeInfo ? Math.max(1, Math.round(bikeInfo.durationSec / 60)) : bikeMin;
+      const wMin = walkInfo ? Math.max(1, Math.round(walkInfo.durationS / 60)) : walkMin;
+      const bMin = bikeInfo ? Math.max(1, Math.round(bikeInfo.durationS / 60)) : bikeMin;
       const wKm = walkInfo ? (walkInfo.distanceM / 1000) : dist;
       const bKm = bikeInfo ? (bikeInfo.distanceM / 1000) : dist;
 
