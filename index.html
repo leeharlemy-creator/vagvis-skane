@@ -2056,7 +2056,7 @@
       // Le serveur de démonstration OSRM ne connaît que la voiture : pour la marche et le vélo,
       // on utilise les serveurs OpenStreetMap (FOSSGIS) qui ont de vrais profils piéton et vélo.
       const fin = `${fromLng},${fromLat};${toLng},${toLat}?overview=full&geometries=geojson&steps=true`;
-      const vitesse = profile === 'bike' ? 4.2 : profile === 'foot' ? 1.4 : null; // m/s si repli
+      const vitesse = profile === 'bike' ? 4.17 : profile === 'foot' ? 1.39 : null; // m/s (15 km/h et 5 km/h)
       const serveurs = profile === 'foot'
         ? ['https://routing.openstreetmap.de/routed-foot/route/v1/driving/', 'https://router.project-osrm.org/route/v1/foot/']
         : profile === 'bike'
@@ -2079,8 +2079,8 @@
           return {
             coords,
             distanceM: route.distance,
-            // serveur de secours = durée voiture : on recalcule à partir de la distance
-            durationS: (k > 0 && vitesse) ? route.distance / vitesse : route.duration,
+            // marche (5 km/h) et vélo (15 km/h) : durée recalculée à partir de la distance
+            durationS: vitesse ? route.distance / vitesse : route.duration,
             steps
           };
         } catch (e) {
@@ -2394,8 +2394,16 @@
       if (!q || /^(ma position|my location|min position|here|ici)$/i.test(q)) {
         return { name: 'Ma position', lat: userLat, lng: userLng };
       }
-      // POI local
       const ql = q.toLowerCase();
+      // Nom exact d'abord (évite « Malmö C » → « Komvux Malmö Centrum », « Lund » → « Hotel Lundia »)
+      const candidats = buildSearchIndex();
+      const exact = candidats.find(it => (it.name || '').toLowerCase() === ql);
+      if (exact) return { name: exact.name, lat: exact.lat, lng: exact.lng };
+      if (ql.length >= 3) {
+        const debut = candidats.find(it => (it.name || '').toLowerCase().startsWith(ql));
+        if (debut) return { name: debut.name, lat: debut.lat, lng: debut.lng };
+      }
+      // POI local
       const poi = (typeof POIS !== 'undefined' ? POIS : []).find(p =>
         p.name.toLowerCase().includes(ql) || (p.desc && p.desc.toLowerCase().includes(ql))
       );
