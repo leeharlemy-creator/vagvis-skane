@@ -590,6 +590,36 @@
       .bottom-sheet { padding-bottom: max(8px, env(safe-area-inset-bottom)); }
     }
     .trip-pill { display:inline-flex; align-items:center; gap:5px; padding:4px 10px; border-radius:8px; font-size:12px; font-weight:700; color:#fff; }
+
+    /* ========== FORMAT TÉLÉPHONE (iPhone / petits écrans) ========== */
+    @media (max-width: 480px) {
+      /* Logo + nom en haut, boutons sur leur propre ligne : plus rien ne déborde */
+      .brand { flex-wrap: wrap; row-gap: 10px; margin-bottom: 10px; }
+      .top-actions { flex-wrap: wrap; width: 100%; justify-content: flex-start; row-gap: 6px; }
+      .top-actions button { flex-shrink: 0; }
+      .brand-region { white-space: nowrap; }
+      /* Le petit widget CO₂ passait sous la barre du haut : masqué sur téléphone */
+      #carbonWidget { display: none; }
+      /* Widget GPS plus compact */
+      #gpsWidget { min-width: 0 !important; padding: 8px 10px; }
+      #gpsWidget .carbon-label { font-size: 10px; margin-bottom: 2px; }
+      #gpsWidget #gpsCoords { font-size: 12px !important; }
+      /* Barre de recherche et onglets un peu plus compacts */
+      .transport-tabs { margin-top: 10px; }
+      .transport-tab { padding: 8px 12px; font-size: 12px; }
+      /* Les cartes de trajets ne débordent pas */
+      .route-card { padding: 14px 14px; }
+      .route-duration { font-size: 22px; }
+      .trip-pill { font-size: 11px; padding: 3px 8px; }
+    }
+    /* Widgets lisibles sur la carte en thème bleu ciel (texte blanc sur fond bleu soutenu) */
+    [data-theme="ios"] .carbon-widget {
+      background: rgba(32, 92, 152, 0.62);
+      border-color: rgba(255, 255, 255, 0.35);
+    }
+    [data-theme="ios"] .carbon-widget .carbon-label,
+    [data-theme="ios"] .carbon-widget .carbon-sub { color: rgba(255, 255, 255, 0.9); }
+    [data-theme="ios"] .locate-btn { background: rgba(32, 92, 152, 0.62); color: #ffffff; }
   </style>
 </head>
 <body>
@@ -606,7 +636,7 @@
           <div class="brand-region">Malmö • Skåne</div>
         </div>
       </div>
-      <div style="display:flex;gap:4px;align-items:center;">
+      <div class="top-actions" style="display:flex;gap:4px;align-items:center;">
         <button id="satToggle" title="Vue satellite" style="background:var(--bg-card);border:1px solid #06b6d4;color:#06b6d4;width:32px;height:32px;border-radius:8px;cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:14px;">
           <i class="fas fa-globe"></i>
         </button>
@@ -692,7 +722,7 @@
     <div id="passAlert" style="display:none;align-items:center;gap:8px;margin:10px 0 0;padding:10px 14px;background:var(--bg-glass);backdrop-filter:blur(12px);border:1px solid var(--border);border-radius:14px;font-size:13px;font-weight:600;"></div>
   </div>
 
-  <div class="carbon-widget">
+  <div class="carbon-widget" id="carbonWidget">
     <div class="carbon-label" data-i18n="carbonLabel">CO₂ économisé aujourd'hui</div>
     <div class="carbon-value"><span id="carbonValue">1.8</span> <span>kg</span></div>
     <div class="carbon-sub" data-i18n="carbonSub">vs voiture en Skåne</div>
@@ -1390,6 +1420,11 @@
       initPOIs();
       initMicroMobility();
       initRegionMap();
+
+      // Recalage de la carte (taille réelle de l'écran, rotation de l'iPhone)
+      setTimeout(() => map.invalidateSize(), 300);
+      window.addEventListener('resize', () => map.invalidateSize());
+      window.addEventListener('orientationchange', () => setTimeout(() => map.invalidateSize(), 300));
     }
 
     // ========== CARTE RÉGION SKÅNE ==========
