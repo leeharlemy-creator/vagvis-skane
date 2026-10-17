@@ -130,7 +130,46 @@
 
     * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
 
-    html { height: 100%; }
+    html {
+      height: 100%;
+      --ui-zoom: 1;
+    }
+
+    /* Agrandissement du texte / UI (sans casser la carte) */
+    .top-bar,
+    .bottom-sheet,
+    #navBanner,
+    .toast,
+    .carbon-widget,
+    #gpsWidget {
+      zoom: var(--ui-zoom);
+    }
+    @supports not (zoom: 1) {
+      .top-bar,
+      .bottom-sheet,
+      #navBanner,
+      .toast,
+      .carbon-widget,
+      #gpsWidget {
+        font-size: calc(15px * var(--ui-zoom));
+      }
+    }
+    .text-scale-btn {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      color: var(--text);
+      width: 32px;
+      height: 32px;
+      border-radius: 8px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 800;
+      font-size: 13px;
+      line-height: 1;
+      padding: 0;
+    }
 
     body {
       font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "Inter", "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
@@ -543,10 +582,103 @@
 
     .user-dot {
       width: 16px; height: 16px;
-      background: var(--primary);
+      background: #3b9ee0;
       border: 3px solid white;
       border-radius: 50%;
-      box-shadow: 0 0 0 6px rgba(59, 130, 246, 0.3);
+      box-shadow: 0 0 0 6px rgba(59, 158, 224, 0.35);
+    }
+    /* Curseur d'orientation — très visible */
+    .nav-cursor {
+      width: 56px;
+      height: 56px;
+      margin-left: -28px;
+      margin-top: -28px;
+      transform-origin: center center;
+      will-change: transform;
+      position: relative;
+    }
+    .nav-cursor::before {
+      content: '';
+      position: absolute;
+      left: 50%; top: 50%;
+      width: 64px; height: 64px;
+      margin: -32px 0 0 -32px;
+      border-radius: 50%;
+      background: rgba(37, 99, 235, 0.25);
+      animation: navPulse 1.6s ease-out infinite;
+      z-index: 0;
+    }
+    @keyframes navPulse {
+      0%   { transform: scale(0.7); opacity: 0.7; }
+      70%  { transform: scale(1.35); opacity: 0; }
+      100% { transform: scale(1.35); opacity: 0; }
+    }
+    .nav-cursor svg {
+      position: relative;
+      z-index: 1;
+      width: 56px;
+      height: 56px;
+      filter:
+        drop-shadow(0 0 2px #fff)
+        drop-shadow(0 0 6px rgba(37, 99, 235, 0.9))
+        drop-shadow(0 3px 10px rgba(0,0,0,0.45));
+    }
+    .nav-accuracy {
+      width: 64px;
+      height: 64px;
+      margin-left: -32px;
+      margin-top: -32px;
+      border-radius: 50%;
+      background: rgba(37, 99, 235, 0.2);
+      border: 2px solid rgba(37, 99, 235, 0.45);
+      pointer-events: none;
+    }
+    #navBanner {
+      position: absolute;
+      top: 0; left: 0; right: 0;
+      z-index: 1100;
+      display: none;
+      padding: 12px 16px;
+      padding-top: max(12px, env(safe-area-inset-top));
+      background: linear-gradient(180deg, rgba(15,40,70,0.92), rgba(15,40,70,0.75));
+      backdrop-filter: blur(16px);
+      color: white;
+      border-bottom: 1px solid rgba(255,255,255,0.12);
+    }
+    #navBanner.active { display: block; }
+    #navBanner .nav-instr {
+      font-size: 17px;
+      font-weight: 700;
+      line-height: 1.25;
+      margin-bottom: 4px;
+    }
+    #navBanner .nav-meta {
+      font-size: 13px;
+      opacity: 0.85;
+      display: flex;
+      gap: 12px;
+      flex-wrap: wrap;
+    }
+    #navBanner .nav-actions {
+      display: flex;
+      gap: 8px;
+      margin-top: 10px;
+    }
+    #navBanner button {
+      border: none;
+      border-radius: 20px;
+      padding: 8px 14px;
+      font-weight: 700;
+      font-size: 13px;
+      cursor: pointer;
+    }
+    #navStopBtn {
+      background: #ef4444;
+      color: white;
+    }
+    #navRecenterBtn {
+      background: rgba(255,255,255,0.2);
+      color: white;
     }
 
     /* ========== RESPONSIVE ========== */
@@ -624,6 +756,18 @@
 </head>
 <body>
   <div id="map"></div>
+  <div id="navBanner">
+    <div class="nav-instr" id="navInstr">Suivez l'itinéraire</div>
+    <div class="nav-meta">
+      <span id="navDist">—</span>
+      <span id="navEta">—</span>
+      <span id="navModeLabel">—</span>
+    </div>
+    <div class="nav-actions">
+      <button type="button" id="navStopBtn" onclick="stopNavigation()">Arrêter</button>
+      <button type="button" id="navRecenterBtn" onclick="recenterNavigation()">Recentrer</button>
+    </div>
+  </div>
   <div id="map3d"></div>
   <div id="mapGoogle"></div>
 
@@ -658,6 +802,8 @@
         <button id="iosModeBtn" title="Mode iOS" style="background:var(--bg-card);border:1px solid var(--border);color:var(--text);width:32px;height:32px;border-radius:8px;cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:800;">
           iOS
         </button>
+        <button type="button" class="text-scale-btn" id="textZoomOutBtn" title="Texte plus petit">A−</button>
+        <button type="button" class="text-scale-btn" id="textZoomInBtn" title="Texte plus grand">A+</button>
         <button id="installBtn" title="Installer l'app" style="display:none;background:var(--primary);border:1px solid var(--primary);color:white;font-size:11px;font-weight:700;padding:5px 10px;border-radius:8px;cursor:pointer;align-items:center;gap:4px;">
           <i class="fas fa-download"></i> Installer
         </button>
@@ -951,10 +1097,9 @@
 
     function getTileConfig(theme, type) {
       const token = CONFIG.mapboxToken;
-      // Mapbox si clé publique présente
+      // Mapbox si clé publique présente (rendu premium type Google)
       if (token && typeof token === 'string' && token.startsWith('pk.')) {
         let styleId;
-        // Trafic Mapbox (couleurs congestion) — styles officiels traffic-day / traffic-night
         if (trafficEnabled && type !== 'satellite') {
           styleId = theme === 'dark'
             ? 'mapbox/traffic-night-v2'
@@ -964,6 +1109,7 @@
         } else if (theme === 'dark') {
           styleId = CONFIG.mapboxStyleDark || 'mapbox/dark-v11';
         } else {
+          // Streets moderne, très lisible
           styleId = CONFIG.mapboxStyleStreet || 'mapbox/streets-v12';
         }
         return {
@@ -971,12 +1117,12 @@
           options: {
             tileSize: 512,
             zoomOffset: -1,
-            maxZoom: 20,
+            maxZoom: 22,
             attribution: '© Mapbox © OpenStreetMap'
           }
         };
       }
-      // Repli gratuit sans clé
+      // Satellite gratuit (Esri)
       if (type === 'satellite') {
         return {
           url: 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
@@ -986,12 +1132,23 @@
           }
         };
       }
+      // Plan gratuit plus beau (Carto Voyager) — style proche Google Maps
+      if (theme === 'dark') {
+        return {
+          url: 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',
+          options: {
+            maxZoom: 20,
+            subdomains: 'abcd',
+            attribution: '© OpenStreetMap © CARTO'
+          }
+        };
+      }
       return {
-        url: 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
+        url: 'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png',
         options: {
-          maxZoom: 19,
-          subdomains: 'abc',
-          attribution: '© OpenStreetMap'
+          maxZoom: 20,
+          subdomains: 'abcd',
+          attribution: '© OpenStreetMap © CARTO'
         }
       };
     }
@@ -1172,16 +1329,16 @@
       if (tileLayer && map) map.removeLayer(tileLayer);
       tileLayer = L.tileLayer(cfg.url, cfg.options).addTo(map);
 
-      // Filtre CSS uniquement pour OSM (Mapbox a ses propres styles sombre/clair)
+      // Pas de filtre agressif : Carto / Mapbox sont déjà jolis
       const pane = document.querySelector('.leaflet-tile-pane');
-      const usingMapbox = CONFIG.mapboxToken && String(CONFIG.mapboxToken).startsWith('pk.');
       if (pane) {
-        if (mapType === 'satellite' || usingMapbox) {
+        if (mapType === 'satellite') {
           pane.style.filter = 'none';
         } else if (theme === 'dark') {
-          pane.style.filter = 'brightness(0.7) contrast(1.1) saturate(0.85)';
+          pane.style.filter = 'none'; // Carto dark_all déjà sombre
         } else {
-          pane.style.filter = 'none';
+          // Légère nette pour un rendu type Google
+          pane.style.filter = 'contrast(1.04) saturate(1.05)';
         }
       }
 
@@ -1270,20 +1427,29 @@
 
       googleMap = new google.maps.Map(el, {
         center: { lat: center.lat, lng: center.lng },
-        zoom: Math.max(zoom, 14),
+        zoom: Math.max(zoom, 15),
         mapTypeId,
         tilt: 45,
         heading: 0,
         disableDefaultUI: false,
         zoomControl: true,
         mapTypeControl: true,
+        mapTypeControlOptions: {
+          style: google.maps.MapTypeControlStyle.DROPDOWN_MENU,
+          mapTypeIds: ['roadmap', 'satellite', 'hybrid', 'terrain']
+        },
         streetViewControl: true,
         streetViewControlOptions: {
           position: google.maps.ControlPosition.RIGHT_BOTTOM
         },
         fullscreenControl: false,
         gestureHandling: 'greedy',
-        clickableIcons: true
+        clickableIcons: true,
+        // Rendu moderne (si supporté par la clé)
+        isFractionalZoomEnabled: true,
+        colorScheme: (document.documentElement.getAttribute('data-theme') === 'dark')
+          ? (google.maps.ColorScheme?.DARK || undefined)
+          : (google.maps.ColorScheme?.LIGHT || undefined)
       });
 
       new google.maps.Marker({
@@ -2107,10 +2273,12 @@
           const coords = route.geometry.coordinates.map(c => [c[1], c[0]]); // [lat,lng]
           const steps = (route.legs?.[0]?.steps || []).map(s => ({
             instruction: s.maneuver?.type || '',
+            modifier: s.maneuver?.modifier || '',
             name: s.name || '',
             distance: s.distance,
-            duration: s.duration
-          })).filter(s => s.distance > 15 || s.name);
+            duration: s.duration,
+            location: s.maneuver?.location ? [s.maneuver.location[1], s.maneuver.location[0]] : null
+          })).filter(s => s.distance > 10 || s.name || s.instruction === 'arrive');
           return {
             coords,
             distanceM: route.distance,
@@ -2133,13 +2301,17 @@
       return Math.max(1, Math.round(s / 60));
     }
 
-    async function drawCalculatedRoute(toLat, toLng, mode, fallbackMin) {
+    async function drawCalculatedRoute(toLat, toLng, mode, fallbackMin, fromLat, fromLng) {
+      // Départ : celui de l'itinéraire A→B s'il est donné, sinon ta position
+      const customStart = (typeof fromLat === 'number' && typeof fromLng === 'number');
+      const sLat = customStart ? fromLat : userLat;
+      const sLng = customStart ? fromLng : userLng;
       routeLayer.clearLayers();
       showToast('Calcul de l\'itinéraire…');
 
       const profile = mode === 'bike' ? 'bike' : mode === 'walk' ? 'foot' : 'foot';
       // Pour bus : trajet à pied vers l'arrêt le plus proche approximatif + ligne droite conceptuelle
-      const osrm = await fetchOsrmRoute(userLat, userLng, toLat, toLng, profile);
+      const osrm = await fetchOsrmRoute(sLat, sLng, toLat, toLng, profile);
 
       const colors = { bike: '#d97706', bus: '#2563eb', walk: '#16a34a', train: '#7c3aed' };
       let latlngs;
@@ -2156,8 +2328,8 @@
         distLabel = formatDistance(osrm.distanceM);
       } else {
         // Fallback ligne droite
-        latlngs = [[userLat, userLng], [toLat, toLng]];
-        distLabel = formatDistance(haversine(userLat, userLng, toLat, toLng) * 1000);
+        latlngs = [[sLat, sLng], [toLat, toLng]];
+        distLabel = formatDistance(haversine(sLat, sLng, toLat, toLng) * 1000);
       }
 
       L.polyline(latlngs, {
@@ -2169,7 +2341,7 @@
         lineCap: 'round'
       }).addTo(routeLayer);
 
-      L.circleMarker([userLat, userLng], {
+      L.circleMarker([sLat, sLng], {
         radius: 7, color: '#5eb6f0', fillColor: '#5eb6f0', fillOpacity: 1, weight: 2
       }).addTo(routeLayer);
 
@@ -2181,6 +2353,32 @@
 
       const modeLabel = mode === 'bike' ? 'vélo' : mode === 'bus' ? 'bus + marche' : mode === 'train' ? 'train' : 'à pied';
       showToast(`Itinéraire ${modeLabel} • ${minutes} min${distLabel ? ' • ' + distLabel : ''}`);
+
+      // Bouton démarrer navigation dans le panneau
+      const container = document.getElementById('routesContainer');
+      if (container && !customStart) {
+        const existing = document.getElementById('startNavPanel');
+        if (existing) existing.remove();
+        const panel = document.createElement('div');
+        panel.id = 'startNavPanel';
+        panel.style.cssText = 'padding:0 0 12px;animation:fadeIn 0.3s ease;';
+        panel.innerHTML = `
+          <div class="route-card" style="border-color:var(--primary);background:var(--primary-soft);">
+            <div class="route-top">
+              <div class="route-duration" style="font-size:18px;">${minutes} min</div>
+              <div class="route-price">${distLabel || ''}</div>
+            </div>
+            <div class="route-meta" style="margin-bottom:12px;"><span>Itinéraire ${modeLabel}</span></div>
+            <button type="button" onclick="startNavigation(${toLat},${toLng},'${mode}')"
+              style="width:100%;background:#2563eb;color:white;border:none;border-radius:14px;padding:14px;font-weight:800;font-size:15px;cursor:pointer;">
+              ▶ Démarrer la navigation
+            </button>
+          </div>`;
+        container.style.display = 'block';
+        container.prepend(panel);
+        expandSheet();
+        document.getElementById('tabRoutes')?.click();
+      }
 
       return { minutes, distLabel, coords: latlngs, steps: osrm?.steps || [] };
     }
@@ -2235,6 +2433,47 @@
       else setTheme(current === 'dark' ? 'light' : 'dark');
     }
 
+
+    // ========== TAILLE DU TEXTE ==========
+    const TEXT_SCALES = [0.9, 1, 1.15, 1.3, 1.45];
+    let textScaleIndex = 1; // défaut = 100%
+
+    function applyTextScale(scale) {
+      const s = Math.min(1.6, Math.max(0.85, Number(scale) || 1));
+      document.documentElement.style.setProperty('--ui-zoom', String(s));
+      localStorage.setItem('vagvis-text-scale', String(s));
+      // index le plus proche
+      let best = 0, bestD = Infinity;
+      TEXT_SCALES.forEach((v, i) => {
+        const d = Math.abs(v - s);
+        if (d < bestD) { bestD = d; best = i; }
+      });
+      textScaleIndex = best;
+      const label = Math.round(s * 100) + ' %';
+      const chip = document.getElementById('textScaleLabel');
+      if (chip) chip.textContent = label;
+    }
+
+    function textZoomIn() {
+      textScaleIndex = Math.min(TEXT_SCALES.length - 1, textScaleIndex + 1);
+      applyTextScale(TEXT_SCALES[textScaleIndex]);
+      showToast('Texte ' + Math.round(TEXT_SCALES[textScaleIndex] * 100) + ' %');
+    }
+
+    function textZoomOut() {
+      textScaleIndex = Math.max(0, textScaleIndex - 1);
+      applyTextScale(TEXT_SCALES[textScaleIndex]);
+      showToast('Texte ' + Math.round(TEXT_SCALES[textScaleIndex] * 100) + ' %');
+    }
+
+    function initTextScale() {
+      const saved = parseFloat(localStorage.getItem('vagvis-text-scale') || '1');
+      applyTextScale(isNaN(saved) ? 1 : saved);
+    }
+
+    window.textZoomIn = textZoomIn;
+    window.textZoomOut = textZoomOut;
+
     function toggleIosMode() {
       const current = document.documentElement.getAttribute('data-theme') || 'dark';
       if (current === 'ios') {
@@ -2282,9 +2521,12 @@
         (pos) => {
           userLat = pos.coords.latitude;
           userLng = pos.coords.longitude;
-          userMarker.setLatLng([userLat, userLng]);
-          map.setView([userLat, userLng], 14);
+          if (userMarker) userMarker.setLatLng([userLat, userLng]);
+          map.setView([userLat, userLng], navActive ? 17 : 14);
           updateGpsDisplay(userLat, userLng, pos.coords.accuracy, 'gps');
+          if (typeof pos.coords.heading === 'number' && !isNaN(pos.coords.heading)) {
+            setNavHeading(pos.coords.heading);
+          }
           showToast('Position GPS mise à jour');
           if (document.getElementById('tabNearby')?.classList.contains('active')) {
             renderNearby();
@@ -2294,6 +2536,306 @@
         { enableHighAccuracy: true, timeout: 8000 }
       );
     }
+
+    // ========== NAVIGATION GUIDÉE (curseur + accompagnement) ==========
+    let navActive = false;
+    let navWatchId = null;
+    let navHeading = 0;
+    let navDest = null; // { lat, lng, name, mode }
+    let navCoords = [];
+    let navSteps = [];
+    let navStepIndex = 0;
+    let navArrived = false;
+    let accuracyCircle = null;
+    let orientHandler = null;
+
+    function navCursorHtml(heading) {
+      return `<div class="nav-cursor" style="transform:rotate(${heading}deg)">
+        <svg viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg">
+          <defs>
+            <linearGradient id="navGrad" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stop-color="#93c5fd"/>
+              <stop offset="55%" stop-color="#3b82f6"/>
+              <stop offset="100%" stop-color="#1d4ed8"/>
+            </linearGradient>
+          </defs>
+          <!-- halo blanc -->
+          <path d="M32 4 L54 54 L32 42 L10 54 Z" fill="#ffffff" opacity="0.95"/>
+          <!-- flèche bleue -->
+          <path d="M32 8 L50 50 L32 40 L14 50 Z" fill="url(#navGrad)" stroke="#ffffff" stroke-width="2.5" stroke-linejoin="round"/>
+          <!-- point central -->
+          <circle cx="32" cy="36" r="4" fill="#ffffff"/>
+        </svg>
+      </div>`;
+    }
+
+    function setNavCursorIcon(heading) {
+      if (!userMarker) return;
+      const icon = L.divIcon({
+        className: '',
+        html: navCursorHtml(heading || 0),
+        iconSize: [56, 56],
+        iconAnchor: [28, 28]
+      });
+      userMarker.setIcon(icon);
+    }
+
+    function setNavHeading(deg) {
+      if (typeof deg !== 'number' || isNaN(deg)) return;
+      navHeading = ((deg % 360) + 360) % 360;
+      if (navActive) setNavCursorIcon(navHeading);
+    }
+
+    function bearingBetween(lat1, lng1, lat2, lng2) {
+      const toRad = Math.PI / 180;
+      const φ1 = lat1 * toRad, φ2 = lat2 * toRad;
+      const Δλ = (lng2 - lng1) * toRad;
+      const y = Math.sin(Δλ) * Math.cos(φ2);
+      const x = Math.cos(φ1) * Math.sin(φ2) - Math.sin(φ1) * Math.cos(φ2) * Math.cos(Δλ);
+      return ((Math.atan2(y, x) * 180 / Math.PI) + 360) % 360;
+    }
+
+    function distanceM(lat1, lng1, lat2, lng2) {
+      return haversine(lat1, lng1, lat2, lng2) * 1000;
+    }
+
+    function nearestPointOnRoute(lat, lng, coords) {
+      if (!coords || coords.length < 2) return { index: 0, dist: 0 };
+      let best = 0, bestD = Infinity;
+      for (let i = 0; i < coords.length; i++) {
+        const d = distanceM(lat, lng, coords[i][0], coords[i][1]);
+        if (d < bestD) { bestD = d; best = i; }
+      }
+      return { index: best, dist: bestD };
+    }
+
+    function remainingDistance(lat, lng, coords, fromIndex) {
+      let d = 0;
+      if (!coords.length) return 0;
+      const i0 = Math.min(fromIndex, coords.length - 1);
+      d += distanceM(lat, lng, coords[i0][0], coords[i0][1]);
+      for (let i = i0; i < coords.length - 1; i++) {
+        d += distanceM(coords[i][0], coords[i][1], coords[i + 1][0], coords[i + 1][1]);
+      }
+      return d;
+    }
+
+    // Distance le long du tracé entre deux points (indices de la liste de coordonnées)
+    function routeDistanceBetween(coords, i0, i1) {
+      let d = 0;
+      for (let i = Math.max(0, i0); i < Math.min(i1, coords.length - 1); i++) {
+        d += distanceM(coords[i][0], coords[i][1], coords[i + 1][0], coords[i + 1][1]);
+      }
+      return d;
+    }
+
+    function stepInstruction(step) {
+      if (!step) return 'Continuez tout droit';
+      const t = (step.instruction || '').toLowerCase();
+      const name = step.name ? ` sur ${step.name}` : '';
+      const mod = (step.modifier || '').toLowerCase();
+      if (t === 'depart') return 'Départ' + name;
+      if (t === 'arrive' || t === 'destination') return 'Vous êtes arrivé';
+      if (t === 'turn') {
+        if (mod.includes('slight left')) return 'Légèrement à gauche' + name;
+        if (mod.includes('slight right')) return 'Légèrement à droite' + name;
+        if (mod.includes('sharp left')) return 'Virage serré à gauche' + name;
+        if (mod.includes('sharp right')) return 'Virage serré à droite' + name;
+        if (mod.includes('left')) return 'Tournez à gauche' + name;
+        if (mod.includes('right')) return 'Tournez à droite' + name;
+        if (mod.includes('uturn')) return 'Faites demi-tour' + name;
+        return 'Continuez tout droit' + name;
+      }
+      if (t === 'new name') return 'Continuez' + name;
+      if (t === 'merge') return 'Rejoignez' + name;
+      if (t === 'on ramp') return 'Prenez l\'accès' + name;
+      if (t === 'off ramp') return 'Prenez la sortie' + name;
+      if (t === 'roundabout' || t === 'rotary') return 'Rond-point' + name;
+      if (t === 'fork') return 'Au croisement, choisissez la voie' + name;
+      if (t === 'end of road') return 'En fin de route' + (mod.includes('left') ? ', à gauche' : mod.includes('right') ? ', à droite' : '') + name;
+      if (t === 'continue') return 'Continuez' + name;
+      return (step.name ? `Continuez sur ${step.name}` : 'Suivez l\'itinéraire');
+    }
+
+    function updateNavUi(lat, lng) {
+      if (!navActive || !navDest) return;
+      const near = nearestPointOnRoute(lat, lng, navCoords);
+      const remain = remainingDistance(lat, lng, navCoords, near.index);
+      const etaMin = Math.max(1, Math.round(remain / (navDest.mode === 'bike' ? 250 : navDest.mode === 'walk' ? 80 : 120)));
+
+      // Prochaine instruction : la manœuvre À VENIR, avec la distance restante jusqu'à elle
+      let instr = 'Suivez l\'itinéraire';
+      if (navSteps.length > 1) {
+        // Une manœuvre est « passée » quand on a dépassé son point sur le tracé
+        while (navStepIndex < navSteps.length - 2 && near.index >= navSteps[navStepIndex + 1]._idx) {
+          navStepIndex++;
+        }
+        const upcoming = navSteps[Math.min(navStepIndex + 1, navSteps.length - 1)];
+        const dTo = routeDistanceBetween(navCoords, near.index, upcoming._idx);
+        const dTxt = dTo < 1000 ? `${Math.max(10, Math.round(dTo / 10) * 10)} m` : `${(dTo / 1000).toFixed(1)} km`;
+        instr = (dTo > 25 ? `Dans ${dTxt} · ` : '') + stepInstruction(upcoming);
+      } else if (navCoords.length > near.index + 1) {
+        const next = navCoords[Math.min(near.index + 3, navCoords.length - 1)];
+        const br = bearingBetween(lat, lng, next[0], next[1]);
+        const diff = ((br - navHeading + 540) % 360) - 180;
+        if (Math.abs(diff) < 25) instr = 'Continuez tout droit';
+        else if (diff > 0) instr = 'Orientez-vous légèrement à droite';
+        else instr = 'Orientez-vous légèrement à gauche';
+      }
+
+      const distEl = document.getElementById('navDist');
+      const etaEl = document.getElementById('navEta');
+      const instrEl = document.getElementById('navInstr');
+      const modeEl = document.getElementById('navModeLabel');
+      if (instrEl) instrEl.textContent = instr;
+      if (distEl) distEl.textContent = remain < 1000 ? `${Math.round(remain)} m restants` : `${(remain / 1000).toFixed(1)} km restants`;
+      if (etaEl) etaEl.textContent = `~${etaMin} min`;
+      if (modeEl) modeEl.textContent = navDest.mode === 'bike' ? 'Vélo' : navDest.mode === 'walk' ? 'Marche' : 'Navigation';
+
+      // Arrivée
+      const dDest = distanceM(lat, lng, navDest.lat, navDest.lng);
+      if (dDest < 35 && !navArrived) {
+        navArrived = true;
+        if (instrEl) instrEl.textContent = 'Vous êtes arrivé !';
+        showToast('Destination atteinte');
+        setTimeout(() => stopNavigation(), 2500);
+      }
+    }
+
+    function onNavPosition(pos) {
+      userLat = pos.coords.latitude;
+      userLng = pos.coords.longitude;
+      if (userMarker) userMarker.setLatLng([userLat, userLng]);
+      updateGpsDisplay(userLat, userLng, pos.coords.accuracy, 'gps');
+
+      if (typeof pos.coords.heading === 'number' && !isNaN(pos.coords.heading) && pos.coords.speed > 0.5) {
+        setNavHeading(pos.coords.heading);
+      } else if (navCoords.length > 1) {
+        const near = nearestPointOnRoute(userLat, userLng, navCoords);
+        const next = navCoords[Math.min(near.index + 2, navCoords.length - 1)];
+        setNavHeading(bearingBetween(userLat, userLng, next[0], next[1]));
+      }
+
+      if (accuracyCircle) {
+        accuracyCircle.setLatLng([userLat, userLng]);
+        accuracyCircle.setRadius(Math.min(80, Math.max(12, pos.coords.accuracy || 25)));
+      }
+
+      if (navActive) {
+        // Carte centrée + orientation (bearing)
+        map.setView([userLat, userLng], Math.max(map.getZoom(), 17), { animate: true });
+        updateNavUi(userLat, userLng);
+      }
+    }
+
+    function startOrientation() {
+      if (orientHandler) return;
+      orientHandler = (e) => {
+        // iOS webkitCompassHeading, sinon alpha
+        let h = null;
+        if (typeof e.webkitCompassHeading === 'number') h = e.webkitCompassHeading;
+        else if (typeof e.alpha === 'number') h = 360 - e.alpha;
+        if (h != null) setNavHeading(h);
+      };
+      const tryListen = () => {
+        window.addEventListener('deviceorientation', orientHandler, true);
+      };
+      if (typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission === 'function') {
+        DeviceOrientationEvent.requestPermission().then(s => {
+          if (s === 'granted') tryListen();
+        }).catch(() => {});
+      } else {
+        tryListen();
+      }
+    }
+
+    function stopOrientation() {
+      if (orientHandler) {
+        window.removeEventListener('deviceorientation', orientHandler, true);
+        orientHandler = null;
+      }
+    }
+
+    async function startNavigation(toLat, toLng, mode, name) {
+      if (!navigator.geolocation) {
+        showToast('GPS requis pour la navigation');
+        return;
+      }
+      // iPhone : la boussole se demande au moment du toucher (avant toute attente réseau)
+      startOrientation();
+      // Calculer / rafraîchir l'itinéraire
+      const result = await drawCalculatedRoute(toLat, toLng, mode || 'walk', 15);
+      navCoords = (result && result.coords) ? result.coords : [[userLat, userLng], [toLat, toLng]];
+      navSteps = (result && result.steps) ? result.steps : [];
+      // Chaque manœuvre est rattachée à son point sur le tracé (pour savoir quand on l'a passée)
+      let cum = 0;
+      navSteps = navSteps.map((s, i) => {
+        const idx = s.location ? nearestPointOnRoute(s.location[0], s.location[1], navCoords).index : 0;
+        const o = { ...s, _idx: idx, _cumDist: cum };
+        cum += s.distance || 0;
+        return o;
+      });
+      navStepIndex = 0;
+      navArrived = false;
+      navDest = { lat: toLat, lng: toLng, name: name || 'Destination', mode: mode || 'walk' };
+      navActive = true;
+
+      setNavCursorIcon(navHeading);
+      if (accuracyCircle && map) map.removeLayer(accuracyCircle);
+      accuracyCircle = L.circle([userLat, userLng], {
+        radius: 25, color: '#3b9ee0', weight: 1, fillColor: '#3b9ee0', fillOpacity: 0.12
+      }).addTo(map);
+
+      document.getElementById('navBanner')?.classList.add('active');
+      document.getElementById('navModeLabel').textContent = mode === 'bike' ? 'Vélo' : mode === 'walk' ? 'Marche' : 'Navigation';
+      document.getElementById('navInstr').textContent = navSteps.length ? stepInstruction(navSteps[0]) : 'Suivez l\'itinéraire';
+
+      if (navWatchId != null) navigator.geolocation.clearWatch(navWatchId);
+      navWatchId = navigator.geolocation.watchPosition(
+        onNavPosition,
+        () => showToast('Signal GPS faible'),
+        { enableHighAccuracy: true, maximumAge: 1000, timeout: 10000 }
+      );
+      collapseSheet();
+      showToast('Navigation démarrée — suivez le curseur');
+    }
+
+    function stopNavigation() {
+      navActive = false;
+      navDest = null;
+      navCoords = [];
+      navSteps = [];
+      if (navWatchId != null) {
+        navigator.geolocation.clearWatch(navWatchId);
+        navWatchId = null;
+      }
+      stopOrientation();
+      document.getElementById('navBanner')?.classList.remove('active');
+      // Restaurer point bleu simple
+      if (userMarker) {
+        userMarker.setIcon(L.divIcon({
+          className: '',
+          html: '<div class="user-dot"></div>',
+          iconSize: [16, 16],
+          iconAnchor: [8, 8]
+        }));
+      }
+      if (accuracyCircle && map) {
+        map.removeLayer(accuracyCircle);
+        accuracyCircle = null;
+      }
+      showToast('Navigation arrêtée');
+    }
+
+    function recenterNavigation() {
+      if (userMarker) map.setView(userMarker.getLatLng(), 17);
+      showToast('Carte recentrée');
+    }
+
+    // Exposer pour boutons HTML
+    window.startNavigation = startNavigation;
+    window.stopNavigation = stopNavigation;
+    window.recenterNavigation = recenterNavigation;
 
     // ========== RECHERCHE DE LIEUX (autocomplete) ==========
     function buildSearchIndex() {
@@ -2552,6 +3094,8 @@
       const bMin = bikeInfo ? Math.max(1, Math.round(bikeInfo.durationS / 60)) : bikeMin;
       const wKm = walkInfo ? (walkInfo.distanceM / 1000) : dist;
       const bKm = bikeInfo ? (bikeInfo.distanceM / 1000) : dist;
+      // Si le départ n'est pas « Ma position », le tracé doit partir de ce point
+      const startArgs = (from.name === 'Ma position') ? '' : `,${startLat},${startLng}`;
 
       if (container) {
         container.innerHTML = `
@@ -2562,12 +3106,12 @@
             </div>
             <div style="font-size:12px;font-weight:700;color:var(--text-muted);margin-bottom:10px;text-transform:uppercase;letter-spacing:0.4px;">Options</div>
 
-            <div class="route-card" onclick="drawCalculatedRoute(${endLat},${endLng},'walk',${wMin})">
+            <div class="route-card" onclick="drawCalculatedRoute(${endLat},${endLng},'walk',${wMin}${startArgs})">
               <div class="route-top"><div class="route-duration">${wMin} min</div><div class="route-price">Gratuit</div></div>
               <div class="route-modes"><span class="mode-pill walk"><i class="fas fa-walking"></i> Marche</span></div>
               <div class="route-meta"><span>${wKm < 1 ? Math.round(wKm*1000)+' m' : wKm.toFixed(1)+' km'}</span><span>OSRM</span></div>
             </div>
-            <div class="route-card" onclick="drawCalculatedRoute(${endLat},${endLng},'bike',${bMin})">
+            <div class="route-card" onclick="drawCalculatedRoute(${endLat},${endLng},'bike',${bMin}${startArgs})">
               <div class="route-top"><div class="route-duration">${bMin} min</div><div class="route-price">Gratuit</div></div>
               <div class="route-modes"><span class="mode-pill bike"><i class="fas fa-bicycle"></i> Vélo</span></div>
               <div class="route-meta"><span>${bKm < 1 ? Math.round(bKm*1000)+' m' : bKm.toFixed(1)+' km'}</span><span>OSRM</span></div>
@@ -3510,6 +4054,14 @@ function renderRoutes(routes) {
               <span> Mode iOS</span>
               <span style="font-weight:600;color:var(--primary);">${theme === 'ios' ? 'Activé' : 'Désactivé'}</span>
             </div>
+            <div class="route-card" style="margin:0;padding:12px 14px;display:flex;justify-content:space-between;align-items:center;gap:10px;">
+              <span>🔤 Taille du texte</span>
+              <span style="display:flex;align-items:center;gap:8px;">
+                <button type="button" onclick="event.stopPropagation();textZoomOut();renderSettings();" style="width:34px;height:34px;border-radius:10px;border:1px solid var(--border);background:var(--bg);color:var(--text);font-weight:800;cursor:pointer;">A−</button>
+                <span id="textScaleLabel" style="font-weight:700;color:var(--primary);min-width:40px;text-align:center;">${Math.round((parseFloat(localStorage.getItem('vagvis-text-scale')||'1')||1)*100)} %</span>
+                <button type="button" onclick="event.stopPropagation();textZoomIn();renderSettings();" style="width:34px;height:34px;border-radius:10px;border:1px solid var(--border);background:var(--bg);color:var(--text);font-weight:800;cursor:pointer;">A+</button>
+              </span>
+            </div>
             <div class="route-card" style="margin:0;padding:12px 14px;display:flex;justify-content:space-between;align-items:center;cursor:pointer;" onclick="toggleSatellite();renderSettings();">
               <span>🗺️ Carte</span>
               <span style="font-weight:600;color:var(--primary);">${mapT === 'satellite' ? 'Satellite' : 'Plan'}</span>
@@ -4216,6 +4768,9 @@ function renderRoutes(routes) {
       document.getElementById('themeToggle')?.addEventListener('click', toggleTheme);
       document.getElementById('iosModeBtn')?.addEventListener('click', toggleIosMode);
       updateIosButton();
+      initTextScale();
+      document.getElementById('textZoomInBtn')?.addEventListener('click', textZoomIn);
+      document.getElementById('textZoomOutBtn')?.addEventListener('click', textZoomOut);
       document.getElementById('satToggle')?.addEventListener('click', toggleSatellite);
       document.getElementById('trafficToggle')?.addEventListener('click', toggleTraffic);
       document.getElementById('view3dToggle')?.addEventListener('click', toggle3DView);
@@ -4424,13 +4979,6 @@ function renderRoutes(routes) {
       // Tip civilité au premier chargement (nouveaux arrivants)
       setTimeout(() => showCivilityTip('default'), 2500);
 
-      // Activer Google Maps automatiquement si une clé est déjà présente
-      if (CONFIG.googleMapsApiKey && String(CONFIG.googleMapsApiKey).startsWith('AIza')) {
-        setTimeout(() => {
-          if (!googleMapEnabled) enableGoogleMap();
-        }, 1200);
-      }
-      updateGoogleButton();
       update3dButton();
       updateTrafficButton();
 
