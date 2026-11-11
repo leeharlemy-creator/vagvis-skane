@@ -1,9 +1,14 @@
 /*
-  X-Frame-Options: DENY
-  X-Content-Type-Options: nosniff
+  Cache-Control: public, max-age=0, must-revalidate
 
 /index.html
   Cache-Control: public, max-age=0, must-revalidate
 
 /sw.js
+  Cache-Control: public, max-age=0, must-revalidate
+
+/vagvis-game.js
+  Cache-Control: public, max-age=0, must-revalidate
+
+/vagvis-game.css
   Cache-Control: public, max-age=0, must-revalidate

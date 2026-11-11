@@ -908,37 +908,6 @@
       .top-bar { padding-top: max(12px, env(safe-area-inset-top)); }
       .bottom-sheet { padding-bottom: max(8px, env(safe-area-inset-bottom)); }
     }
-    .trip-pill { display:inline-flex; align-items:center; gap:5px; padding:4px 10px; border-radius:8px; font-size:12px; font-weight:700; color:#fff; }
-
-    /* ========== FORMAT TÉLÉPHONE (iPhone / petits écrans) ========== */
-    @media (max-width: 480px) {
-      /* Logo + nom en haut, boutons sur leur propre ligne : plus rien ne déborde */
-      .brand { flex-wrap: wrap; row-gap: 10px; margin-bottom: 10px; }
-      .top-actions { flex-wrap: wrap; width: 100%; justify-content: flex-start; row-gap: 6px; }
-      .top-actions button { flex-shrink: 0; }
-      .brand-region { white-space: nowrap; }
-      /* Le petit widget CO₂ passait sous la barre du haut : masqué sur téléphone */
-      #carbonWidget { display: none; }
-      /* Widget GPS plus compact */
-      #gpsWidget { min-width: 0 !important; padding: 8px 10px; }
-      #gpsWidget .carbon-label { font-size: 10px; margin-bottom: 2px; }
-      #gpsWidget #gpsCoords { font-size: 12px !important; }
-      /* Barre de recherche et onglets un peu plus compacts */
-      .transport-tabs { margin-top: 10px; }
-      .transport-tab { padding: 8px 12px; font-size: 12px; }
-      /* Les cartes de trajets ne débordent pas */
-      .route-card { padding: 14px 14px; }
-      .route-duration { font-size: 22px; }
-      .trip-pill { font-size: 11px; padding: 3px 8px; }
-    }
-    /* Widgets lisibles sur la carte en thème bleu ciel (texte blanc sur fond bleu soutenu) */
-    [data-theme="ios"] .carbon-widget {
-      background: rgba(32, 92, 152, 0.62);
-      border-color: rgba(255, 255, 255, 0.35);
-    }
-    [data-theme="ios"] .carbon-widget .carbon-label,
-    [data-theme="ios"] .carbon-widget .carbon-sub { color: rgba(255, 255, 255, 0.9); }
-    [data-theme="ios"] .locate-btn { background: rgba(32, 92, 152, 0.62); color: #ffffff; }
 
     /* Touch feedback */
     @media (hover: none) and (pointer: coarse) {
@@ -954,6 +923,8 @@
       }
     }
   </style>
+  <link rel="stylesheet" href="./vagvis-game.css">
+  <script src="./vagvis-game.js" defer></script>
 </head>
 <body>
   <div id="map"></div>
@@ -981,23 +952,18 @@
           <div class="brand-region">Malmö • Skåne</div>
         </div>
       </div>
-      <div class="top-toolbar top-actions">
-        <button id="satToggle" title="Vue satellite" style="background:var(--bg-card);border:1px solid #06b6d4;color:#06b6d4;width:32px;height:32px;border-radius:8px;cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:14px;">
+      <div class="top-toolbar">
+        <button id="satToggle" title="Vue satellite" style="background:var(--bg-card);border:1px solid var(--border);color:var(--text);width:32px;height:32px;border-radius:8px;cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:14px;">
           <i class="fas fa-globe"></i>
         </button>
-        <button id="trafficToggle" title="Trafic" style="background:var(--bg-card);border:1px solid #f97316;color:#f97316;width:32px;height:32px;border-radius:8px;cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:14px;">
+        <button id="trafficToggle" title="Trafic" style="background:var(--bg-card);border:1px solid var(--border);color:var(--text);width:32px;height:32px;border-radius:8px;cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:14px;">
           <i class="fas fa-car"></i>
         </button>
-        <button id="view3dToggle" title="Vue 3D" style="background:var(--bg-card);border:1px solid #8b5cf6;color:#8b5cf6;width:32px;height:32px;border-radius:8px;cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:800;">
+        <button id="view3dToggle" title="Vue 3D" style="background:var(--bg-card);border:1px solid var(--border);color:var(--text);width:32px;height:32px;border-radius:8px;cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:800;">
           3D
         </button>
-        <button id="googleMapToggle" title="Google Maps" style="background:var(--bg-card);border:1px solid #ef4444;color:#ef4444;width:32px;height:32px;border-radius:8px;cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:800;">
-          G
-        </button>
-        <button id="streetViewBtn" title="Street View" style="background:var(--bg-card);border:1px solid #22c55e;color:#22c55e;width:32px;height:32px;border-radius:8px;cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:14px;">
-          👤
-        </button>
-        <button id="themeToggle" title="Theme" style="background:var(--bg-card);border:1px solid #eab308;color:#eab308;width:32px;height:32px;border-radius:8px;cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:14px;">
+
+        <button id="themeToggle" title="Theme" style="background:var(--bg-card);border:1px solid var(--border);color:var(--text);width:32px;height:32px;border-radius:8px;cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:14px;">
           <i class="fas fa-sun"></i>
         </button>
         <button id="iosModeBtn" title="Mode iOS" style="background:var(--bg-card);border:1px solid var(--border);color:var(--text);width:32px;height:32px;border-radius:8px;cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:800;">
@@ -1077,7 +1043,7 @@
     <div id="alertsBarText">Chargement…</div>
   </div>
 
-  <div class="carbon-widget" id="carbonWidget">
+  <div class="carbon-widget">
     <div class="carbon-label" data-i18n="carbonLabel">CO₂ économisé aujourd'hui</div>
     <div class="carbon-value"><span id="carbonValue">1.8</span> <span>kg</span></div>
     <div class="carbon-sub" data-i18n="carbonSub">vs voiture en Skåne</div>
@@ -1198,7 +1164,7 @@
     <div class="detail-view sheet-scroll" id="detailView" style="display:none;padding:0 16px 24px;"></div>
 
     <div style="padding: 8px 16px 16px; text-align: center; font-size: 11px; color: var(--text-muted); opacity: 0.7;">
-      VāgVis • Malmö / Skåne • OSM · OSRM · Nominatim · Données : Trafiklab.se
+      VāgVis • Malmö / Skåne • OSM · OSRM · Nominatim
     </div>
   </div>
 
@@ -1257,7 +1223,7 @@
       // Lancer : cd backend && node server.js  →  http://localhost:3001
       apiBase: (typeof location !== 'undefined' && location.port === '3001')
         ? ''
-        : '',
+        : 'http://localhost:3001',
 
       // 'mock' = données locales | 'live' = appelle le backend /api/departures
       dataMode: 'live'
@@ -1372,14 +1338,14 @@
       const btn = document.getElementById('trafficToggle');
       if (!btn) return;
       if (trafficEnabled) {
-        btn.style.background = '#f97316';
-        btn.style.borderColor = '#f97316';
+        btn.style.background = 'var(--primary)';
+        btn.style.borderColor = 'var(--primary)';
         btn.style.color = 'white';
         btn.title = 'Trafic activé — cliquer pour désactiver';
       } else {
         btn.style.background = 'var(--bg-card)';
-        btn.style.borderColor = '#f97316';
-        btn.style.color = '#f97316';
+        btn.style.borderColor = 'var(--border)';
+        btn.style.color = 'var(--text)';
         btn.title = 'Afficher le trafic';
       }
     }
@@ -1423,14 +1389,14 @@
       const btn = document.getElementById('view3dToggle');
       if (!btn) return;
       if (view3dEnabled) {
-        btn.style.background = '#8b5cf6';
-        btn.style.borderColor = '#8b5cf6';
+        btn.style.background = 'var(--primary)';
+        btn.style.borderColor = 'var(--primary)';
         btn.style.color = 'white';
         btn.title = 'Quitter la vue 3D';
       } else {
         btn.style.background = 'var(--bg-card)';
-        btn.style.borderColor = '#8b5cf6';
-        btn.style.color = '#8b5cf6';
+        btn.style.borderColor = 'var(--border)';
+        btn.style.color = 'var(--text)';
         btn.title = 'Vue 3D (bâtiments)';
       }
     }
@@ -1600,14 +1566,14 @@
       const btn = document.getElementById('googleMapToggle');
       if (!btn) return;
       if (googleMapEnabled) {
-        btn.style.background = '#ef4444';
-        btn.style.borderColor = '#ef4444';
+        btn.style.background = '#4285F4';
+        btn.style.borderColor = '#4285F4';
         btn.style.color = 'white';
         btn.title = 'Quitter Google Maps';
       } else {
         btn.style.background = 'var(--bg-card)';
-        btn.style.borderColor = '#ef4444';
-        btn.style.color = '#ef4444';
+        btn.style.borderColor = 'var(--border)';
+        btn.style.color = 'var(--text)';
         btn.title = 'Google Maps';
       }
     }
@@ -1801,11 +1767,6 @@
       initPOIs();
       initMicroMobility();
       initRegionMap();
-
-      // Recalage de la carte (taille réelle de l'écran, rotation de l'iPhone)
-      setTimeout(() => map.invalidateSize(), 300);
-      window.addEventListener('resize', () => map.invalidateSize());
-      window.addEventListener('orientationchange', () => setTimeout(() => map.invalidateSize(), 300));
     }
 
     // ========== CARTE RÉGION SKÅNE ==========
@@ -2470,43 +2431,32 @@
     // ========== CALCUL D'ITINÉRAIRE (OSRM public) ==========
     async function fetchOsrmRoute(fromLat, fromLng, toLat, toLng, profile = 'foot') {
       // profile: foot | bike | driving
-      // Le serveur de démonstration OSRM ne connaît que la voiture : pour la marche et le vélo,
-      // on utilise les serveurs OpenStreetMap (FOSSGIS) qui ont de vrais profils piéton et vélo.
-      const fin = `${fromLng},${fromLat};${toLng},${toLat}?overview=full&geometries=geojson&steps=true`;
-      const vitesse = profile === 'bike' ? 4.17 : profile === 'foot' ? 1.39 : null; // m/s (15 km/h et 5 km/h)
-      const serveurs = profile === 'foot'
-        ? ['https://routing.openstreetmap.de/routed-foot/route/v1/driving/', 'https://router.project-osrm.org/route/v1/foot/']
-        : profile === 'bike'
-          ? ['https://routing.openstreetmap.de/routed-bike/route/v1/driving/', 'https://router.project-osrm.org/route/v1/bike/']
-          : ['https://router.project-osrm.org/route/v1/driving/'];
-      for (let k = 0; k < serveurs.length; k++) {
-        try {
-          const res = await fetch(serveurs[k] + fin);
-          if (!res.ok) continue;
-          const data = await res.json();
-          if (data.code !== 'Ok' || !data.routes?.length) continue;
-          const route = data.routes[0];
-          const coords = route.geometry.coordinates.map(c => [c[1], c[0]]); // [lat,lng]
-          const steps = (route.legs?.[0]?.steps || []).map(s => ({
-            instruction: s.maneuver?.type || '',
-            modifier: s.maneuver?.modifier || '',
-            name: s.name || '',
-            distance: s.distance,
-            duration: s.duration,
-            location: s.maneuver?.location ? [s.maneuver.location[1], s.maneuver.location[0]] : null
-          })).filter(s => s.distance > 10 || s.name || s.instruction === 'arrive');
-          return {
-            coords,
-            distanceM: route.distance,
-            // marche (5 km/h) et vélo (15 km/h) : durée recalculée à partir de la distance
-            durationS: vitesse ? route.distance / vitesse : route.duration,
-            steps
-          };
-        } catch (e) {
-          console.warn('Itinéraire indisponible sur', serveurs[k], e);
-        }
+      const url = `https://router.project-osrm.org/route/v1/${profile}/${fromLng},${fromLat};${toLng},${toLat}?overview=full&geometries=geojson&steps=true`;
+      try {
+        const res = await fetch(url);
+        if (!res.ok) return null;
+        const data = await res.json();
+        if (data.code !== 'Ok' || !data.routes?.length) return null;
+        const route = data.routes[0];
+        const coords = route.geometry.coordinates.map(c => [c[1], c[0]]); // [lat,lng]
+        const steps = (route.legs?.[0]?.steps || []).map(s => ({
+          instruction: s.maneuver?.type || '',
+          modifier: s.maneuver?.modifier || '',
+          name: s.name || '',
+          distance: s.distance,
+          duration: s.duration,
+          location: s.maneuver?.location ? [s.maneuver.location[1], s.maneuver.location[0]] : null
+        })).filter(s => s.distance > 10 || s.name || s.instruction === 'arrive');
+        return {
+          coords,
+          distanceM: route.distance,
+          durationS: route.duration,
+          steps
+        };
+      } catch (e) {
+        console.warn('OSRM indisponible', e);
+        return null;
       }
-      return null;
     }
 
     function formatDistance(m) {
@@ -2517,17 +2467,13 @@
       return Math.max(1, Math.round(s / 60));
     }
 
-    async function drawCalculatedRoute(toLat, toLng, mode, fallbackMin, fromLat, fromLng) {
-      // Départ : celui de l'itinéraire A→B s'il est donné, sinon ta position
-      const customStart = (typeof fromLat === 'number' && typeof fromLng === 'number');
-      const sLat = customStart ? fromLat : userLat;
-      const sLng = customStart ? fromLng : userLng;
+    async function drawCalculatedRoute(toLat, toLng, mode, fallbackMin) {
       routeLayer.clearLayers();
       showToast('Calcul de l\'itinéraire…');
 
       const profile = mode === 'bike' ? 'bike' : mode === 'walk' ? 'foot' : 'foot';
       // Pour bus : trajet à pied vers l'arrêt le plus proche approximatif + ligne droite conceptuelle
-      const osrm = await fetchOsrmRoute(sLat, sLng, toLat, toLng, profile);
+      const osrm = await fetchOsrmRoute(userLat, userLng, toLat, toLng, profile);
 
       const colors = { bike: '#d97706', bus: '#2563eb', walk: '#16a34a', train: '#7c3aed' };
       let latlngs;
@@ -2544,8 +2490,8 @@
         distLabel = formatDistance(osrm.distanceM);
       } else {
         // Fallback ligne droite
-        latlngs = [[sLat, sLng], [toLat, toLng]];
-        distLabel = formatDistance(haversine(sLat, sLng, toLat, toLng) * 1000);
+        latlngs = [[userLat, userLng], [toLat, toLng]];
+        distLabel = formatDistance(haversine(userLat, userLng, toLat, toLng) * 1000);
       }
 
       L.polyline(latlngs, {
@@ -2557,7 +2503,7 @@
         lineCap: 'round'
       }).addTo(routeLayer);
 
-      L.circleMarker([sLat, sLng], {
+      L.circleMarker([userLat, userLng], {
         radius: 7, color: '#5eb6f0', fillColor: '#5eb6f0', fillOpacity: 1, weight: 2
       }).addTo(routeLayer);
 
@@ -2572,7 +2518,7 @@
 
       // Bouton démarrer navigation dans le panneau
       const container = document.getElementById('routesContainer');
-      if (container && !customStart) {
+      if (container) {
         const existing = document.getElementById('startNavPanel');
         if (existing) existing.remove();
         const panel = document.createElement('div');
@@ -2769,7 +2715,7 @@
 
     // ========== ALERTES AUTOMATIQUES (toute la région Skåne) ==========
     // Démo réaliste — brancher plus tard Skånetrafiken / Trafikverket / API événements
-    const DEMO_ALERTS = [
+    const TRAFFIC_ALERTS = [
       {
         id: 'closed_rosengard',
         type: 'closed',
@@ -2915,10 +2861,6 @@
       }
     ];
 
-    // Les alertes ci-dessus sont des EXEMPLES INVENTÉS. Elles ne s'affichent que si on met true ici.
-    const ALERTS_DEMO_MODE = false;
-    const TRAFFIC_ALERTS = ALERTS_DEMO_MODE ? DEMO_ALERTS : [];
-
     let alertsNotifiedIds = new Set(JSON.parse(localStorage.getItem('vagvis-alerts-seen') || '[]'));
     let lastProximityCheck = 0;
 
@@ -2987,6 +2929,7 @@
       const bases = [];
       if (typeof CONFIG !== 'undefined' && CONFIG.backendUrl) bases.push(CONFIG.backendUrl.replace(/\/$/, ''));
       bases.push(''); // même origine si servi par le backend
+      bases.push('http://localhost:3001');
       for (const base of bases) {
         try {
           const url = (base || '') + '/api/alerts';
@@ -3037,15 +2980,11 @@
           showToast(`🚨 ${high.length} alerte${high.length > 1 ? 's' : ''} (${src}) — ${a.title}`);
         }
       } else if (liveAlertsStatus.ok) {
+        showToast('✓ Alertes Skånetrafiken à jour — rien de critique');
       }
       renderAlertsBar();
-      if (navigator.geolocation) {
-        navigator.geolocation.getCurrentPosition(
-          (pos) => checkProximityAlerts(pos.coords.latitude, pos.coords.longitude, true),
-          () => {},
-          { enableHighAccuracy: false, timeout: 6000, maximumAge: 60000 }
-        );
-      }
+      // Ne pas demander l'autorisation de localisation au chargement.
+      // Le GPS est sollicité après une action explicite (localiser, lancer la navigation).
       // Rafraîchir toutes les 3 minutes
       setInterval(() => { fetchLiveSkaneAlerts().then(() => renderAlertsBar()).catch(() => {}); }, 180000);
     }
@@ -3097,13 +3036,13 @@
       if (!el) return;
       const list = allActiveAlerts();
       if (!list.length) {
-        el.innerHTML = `<div class="state-message"><p>${liveAlertsStatus.ok ? 'Aucune alerte en cours sur les départs de Malmö C.' : 'Les alertes en direct sont indisponibles pour le moment.<br>Pour les perturbations, ouvre l\'app Skånetrafiken.'}</p></div>`;
+        el.innerHTML = `<div class="state-message"><p>Aucune alerte en cours en Skåne.</p></div>`;
         return;
       }
       el.innerHTML = `
         <div style="font-size:13px;color:var(--text-secondary);margin-bottom:14px;line-height:1.45;">
           Alertes automatiques Skåne (événements, arrêts fermés, travaux, déviations).
-          <br><span style="font-size:11px;color:var(--text-muted);">${liveAlertsStatus.ok ? '✓ Alertes en direct (Trafiklab, départs de Malmö C)' : 'Alertes en direct indisponibles — voir l\'app Skånetrafiken'}</span>
+          <br><span style="font-size:11px;color:var(--text-muted);">${liveAlertsStatus.ok ? '✓ Live GTFS-RT Skånetrafiken via Trafiklab' : 'Mode démo — backend + TRAFIKLAB_KEY pour le live'}</span>
         </div>
         ${list.map(a => `
           <div class="alert-card ${a.type}">
@@ -3151,7 +3090,6 @@
     let navCoords = [];
     let navSteps = [];
     let navStepIndex = 0;
-    let navArrived = false;
     let accuracyCircle = null;
     let orientHandler = null;
 
@@ -3226,15 +3164,6 @@
       return d;
     }
 
-    // Distance le long du tracé entre deux points (indices de la liste de coordonnées)
-    function routeDistanceBetween(coords, i0, i1) {
-      let d = 0;
-      for (let i = Math.max(0, i0); i < Math.min(i1, coords.length - 1); i++) {
-        d += distanceM(coords[i][0], coords[i][1], coords[i + 1][0], coords[i + 1][1]);
-      }
-      return d;
-    }
-
     function stepInstruction(step) {
       if (!step) return 'Continuez tout droit';
       const t = (step.instruction || '').toLowerCase();
@@ -3243,14 +3172,13 @@
       if (t === 'depart') return 'Départ' + name;
       if (t === 'arrive' || t === 'destination') return 'Vous êtes arrivé';
       if (t === 'turn') {
+        if (mod.includes('left')) return 'Tournez à gauche' + name;
+        if (mod.includes('right')) return 'Tournez à droite' + name;
         if (mod.includes('slight left')) return 'Légèrement à gauche' + name;
         if (mod.includes('slight right')) return 'Légèrement à droite' + name;
         if (mod.includes('sharp left')) return 'Virage serré à gauche' + name;
         if (mod.includes('sharp right')) return 'Virage serré à droite' + name;
-        if (mod.includes('left')) return 'Tournez à gauche' + name;
-        if (mod.includes('right')) return 'Tournez à droite' + name;
-        if (mod.includes('uturn')) return 'Faites demi-tour' + name;
-        return 'Continuez tout droit' + name;
+        return 'Tournez' + name;
       }
       if (t === 'new name') return 'Continuez' + name;
       if (t === 'merge') return 'Rejoignez' + name;
@@ -3258,7 +3186,7 @@
       if (t === 'off ramp') return 'Prenez la sortie' + name;
       if (t === 'roundabout' || t === 'rotary') return 'Rond-point' + name;
       if (t === 'fork') return 'Au croisement, choisissez la voie' + name;
-      if (t === 'end of road') return 'En fin de route' + (mod.includes('left') ? ', à gauche' : mod.includes('right') ? ', à droite' : '') + name;
+      if (t === 'end of road') return 'En fin de route' + name;
       if (t === 'continue') return 'Continuez' + name;
       return (step.name ? `Continuez sur ${step.name}` : 'Suivez l\'itinéraire');
     }
@@ -3269,17 +3197,18 @@
       const remain = remainingDistance(lat, lng, navCoords, near.index);
       const etaMin = Math.max(1, Math.round(remain / (navDest.mode === 'bike' ? 250 : navDest.mode === 'walk' ? 80 : 120)));
 
-      // Prochaine instruction : la manœuvre À VENIR, avec la distance restante jusqu'à elle
+      // Prochaine instruction
       let instr = 'Suivez l\'itinéraire';
-      if (navSteps.length > 1) {
-        // Une manœuvre est « passée » quand on a dépassé son point sur le tracé
-        while (navStepIndex < navSteps.length - 2 && near.index >= navSteps[navStepIndex + 1]._idx) {
-          navStepIndex++;
+      if (navSteps.length) {
+        // Avancer l'étape si on est proche
+        while (navStepIndex < navSteps.length - 1) {
+          const s = navSteps[navStepIndex];
+          // heuristique : passer à l'étape suivante après ~80% de sa distance
+          if ((s._cumDist || 0) > 0 && near.dist < 25 && near.index > (s._idx || 0)) {
+            navStepIndex++;
+          } else break;
         }
-        const upcoming = navSteps[Math.min(navStepIndex + 1, navSteps.length - 1)];
-        const dTo = routeDistanceBetween(navCoords, near.index, upcoming._idx);
-        const dTxt = dTo < 1000 ? `${Math.max(10, Math.round(dTo / 10) * 10)} m` : `${(dTo / 1000).toFixed(1)} km`;
-        instr = (dTo > 25 ? `Dans ${dTxt} · ` : '') + stepInstruction(upcoming);
+        instr = stepInstruction(navSteps[Math.min(navStepIndex, navSteps.length - 1)]);
       } else if (navCoords.length > near.index + 1) {
         const next = navCoords[Math.min(near.index + 3, navCoords.length - 1)];
         const br = bearingBetween(lat, lng, next[0], next[1]);
@@ -3300,8 +3229,7 @@
 
       // Arrivée
       const dDest = distanceM(lat, lng, navDest.lat, navDest.lng);
-      if (dDest < 35 && !navArrived) {
-        navArrived = true;
+      if (dDest < 35) {
         if (instrEl) instrEl.textContent = 'Vous êtes arrivé !';
         showToast('Destination atteinte');
         setTimeout(() => stopNavigation(), 2500);
@@ -3367,22 +3295,18 @@
         showToast('GPS requis pour la navigation');
         return;
       }
-      // iPhone : la boussole se demande au moment du toucher (avant toute attente réseau)
-      startOrientation();
       // Calculer / rafraîchir l'itinéraire
       const result = await drawCalculatedRoute(toLat, toLng, mode || 'walk', 15);
       navCoords = (result && result.coords) ? result.coords : [[userLat, userLng], [toLat, toLng]];
       navSteps = (result && result.steps) ? result.steps : [];
-      // Chaque manœuvre est rattachée à son point sur le tracé (pour savoir quand on l'a passée)
+      // Enrichir steps avec index approx
       let cum = 0;
       navSteps = navSteps.map((s, i) => {
-        const idx = s.location ? nearestPointOnRoute(s.location[0], s.location[1], navCoords).index : 0;
-        const o = { ...s, _idx: idx, _cumDist: cum };
+        const o = { ...s, _idx: i, _cumDist: cum };
         cum += s.distance || 0;
         return o;
       });
       navStepIndex = 0;
-      navArrived = false;
       navDest = { lat: toLat, lng: toLng, name: name || 'Destination', mode: mode || 'walk' };
       try { autoAlertForDestination(name || 'Destination', toLat, toLng); } catch (_) {}
       navActive = true;
@@ -3403,6 +3327,7 @@
         () => showToast('Signal GPS faible'),
         { enableHighAccuracy: true, maximumAge: 1000, timeout: 10000 }
       );
+      startOrientation();
       collapseSheet();
       showToast('Navigation démarrée — suivez le curseur');
     }
@@ -3578,16 +3503,8 @@
       if (!q || /^(ma position|my location|min position|here|ici)$/i.test(q)) {
         return { name: 'Ma position', lat: userLat, lng: userLng };
       }
-      const ql = q.toLowerCase();
-      // Nom exact d'abord (évite « Malmö C » → « Komvux Malmö Centrum », « Lund » → « Hotel Lundia »)
-      const candidats = buildSearchIndex();
-      const exact = candidats.find(it => (it.name || '').toLowerCase() === ql);
-      if (exact) return { name: exact.name, lat: exact.lat, lng: exact.lng };
-      if (ql.length >= 3) {
-        const debut = candidats.find(it => (it.name || '').toLowerCase().startsWith(ql));
-        if (debut) return { name: debut.name, lat: debut.lat, lng: debut.lng };
-      }
       // POI local
+      const ql = q.toLowerCase();
       const poi = (typeof POIS !== 'undefined' ? POIS : []).find(p =>
         p.name.toLowerCase().includes(ql) || (p.desc && p.desc.toLowerCase().includes(ql))
       );
@@ -3697,12 +3614,10 @@
         L.polyline([[startLat, startLng], [endLat, endLng]], { color: '#5eb6f0', weight: 4, dashArray: '8 8', opacity: 0.7 }).addTo(routeLayer);
       }
 
-      const wMin = walkInfo ? Math.max(1, Math.round(walkInfo.durationS / 60)) : walkMin;
-      const bMin = bikeInfo ? Math.max(1, Math.round(bikeInfo.durationS / 60)) : bikeMin;
+      const wMin = walkInfo ? Math.max(1, Math.round(walkInfo.durationSec / 60)) : walkMin;
+      const bMin = bikeInfo ? Math.max(1, Math.round(bikeInfo.durationSec / 60)) : bikeMin;
       const wKm = walkInfo ? (walkInfo.distanceM / 1000) : dist;
       const bKm = bikeInfo ? (bikeInfo.distanceM / 1000) : dist;
-      // Si le départ n'est pas « Ma position », le tracé doit partir de ce point
-      const startArgs = (from.name === 'Ma position') ? '' : `,${startLat},${startLng}`;
 
       if (container) {
         container.innerHTML = `
@@ -3711,176 +3626,35 @@
               <span style="color:#22c55e;font-weight:700;">●</span> ${from.name.split(',')[0]}<br>
               <span style="color:#ef4444;font-weight:700;">●</span> ${to.name.split(',')[0]}
             </div>
-            <div style="font-size:12px;font-weight:700;color:var(--text-muted);margin-bottom:10px;text-transform:uppercase;letter-spacing:0.4px;">Options</div>
+            <div style="font-size:12px;font-weight:700;color:var(--text-muted);margin-bottom:10px;text-transform:uppercase;letter-spacing:0.4px;">Options (sans clé API)</div>
 
-            <div class="route-card" onclick="drawCalculatedRoute(${endLat},${endLng},'walk',${wMin}${startArgs})">
+            <div class="route-card" onclick="drawCalculatedRoute(${endLat},${endLng},'walk',${wMin})">
               <div class="route-top"><div class="route-duration">${wMin} min</div><div class="route-price">Gratuit</div></div>
               <div class="route-modes"><span class="mode-pill walk"><i class="fas fa-walking"></i> Marche</span></div>
               <div class="route-meta"><span>${wKm < 1 ? Math.round(wKm*1000)+' m' : wKm.toFixed(1)+' km'}</span><span>OSRM</span></div>
             </div>
-            <div class="route-card" onclick="drawCalculatedRoute(${endLat},${endLng},'bike',${bMin}${startArgs})">
+            <div class="route-card" onclick="drawCalculatedRoute(${endLat},${endLng},'bike',${bMin})">
               <div class="route-top"><div class="route-duration">${bMin} min</div><div class="route-price">Gratuit</div></div>
               <div class="route-modes"><span class="mode-pill bike"><i class="fas fa-bicycle"></i> Vélo</span></div>
               <div class="route-meta"><span>${bKm < 1 ? Math.round(bKm*1000)+' m' : bKm.toFixed(1)+' km'}</span><span>OSRM</span></div>
             </div>
-            <div id="transitTrips"><div class="route-card" onclick="currentMode='bus';searchAndRoute('${to.name.split(',')[0].replace(/'/g,"\\'")}');">
+            <div class="route-card" onclick="currentMode='bus';searchAndRoute('${to.name.split(',')[0].replace(/'/g,"\\'")}');">
               <div class="route-top"><div class="route-duration">~${busMin} min</div><div class="route-price">~29–39 kr</div></div>
               <div class="route-modes"><span class="mode-pill bus"><i class="fas fa-bus"></i> Bus / train</span></div>
               <div class="route-meta"><span>Skånetrafiken (estim.)</span></div>
-            </div></div>
+            </div>
             <div style="font-size:11px;color:var(--text-muted);margin-top:8px;line-height:1.4;">
               Marche & vélo : tracé réel (OSRM).<br>
-              Bus/train : horaires réels Trafiklab (ResRobot).
+              Bus/train : estimation — horaires officiels avec clé Trafiklab.
             </div>
           </div>`;
       }
-
-      loadTransitTrips(startLat, startLng, endLat, endLng, from, to);
 
       // Restaurer position GPS réelle pour la suite
       userLat = prevLat;
       userLng = prevLng;
       if (userMarker) userMarker.setLatLng([prevLat, prevLng]);
       showToast('Itinéraire calculé');
-    }
-
-    // ========== VRAIS TRAJETS BUS / TRAIN (ResRobot via /api/trip) ==========
-    const TRIP_STYLE = {
-      bus:   { icon: 'fa-bus',        color: '#2563eb' },
-      train: { icon: 'fa-train',      color: '#dc2626' },
-      metro: { icon: 'fa-subway',     color: '#e11d48' },
-      tram:  { icon: 'fa-train-tram', color: '#0d9488' },
-      ferry: { icon: 'fa-ship',       color: '#0284c7' },
-      other: { icon: 'fa-route',      color: '#64748b' },
-      walk:  { icon: 'fa-walking',    color: '#16a34a' }
-    };
-    let tripCtx = null;
-
-    function escHtml(s) {
-      return String(s == null ? '' : s).replace(/[&<>"']/g, c => (
-        { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]
-      ));
-    }
-    function fmtDuree(min) {
-      if (min >= 60) {
-        const h = Math.floor(min / 60), m = min % 60;
-        return m ? `${h} h ${String(m).padStart(2, '0')}` : `${h} h`;
-      }
-      return `${min} min`;
-    }
-    function fmtMetres(m) {
-      return m >= 1000 ? `${(m / 1000).toFixed(1)} km` : `${Math.round(m)} m`;
-    }
-
-    async function loadTransitTrips(startLat, startLng, endLat, endLng, from, to) {
-      const zone = document.getElementById('transitTrips');
-      if (!zone) return;
-      const note = (msg) => zone.insertAdjacentHTML('beforeend',
-        `<div style="font-size:11px;color:var(--text-muted);margin-top:6px;line-height:1.4;">${msg} (estimation affichée)</div>`);
-      const ctrl = new AbortController();
-      const timer = setTimeout(() => ctrl.abort(), 12000);
-      try {
-        const res = await fetch(`/api/trip?from=${startLat},${startLng}&to=${endLat},${endLng}`, { signal: ctrl.signal });
-        clearTimeout(timer);
-        const data = await res.json();
-        if (data && data.code === 'SVC_NO_RESULT') { note('Aucun trajet en transports trouvé pour le moment.'); return; }
-        if (!res.ok || !data || data.error || !(data.trips && data.trips.length)) {
-          note('Horaires bus/train indisponibles pour le moment.');
-          return;
-        }
-        tripCtx = { from, to, trips: data.trips };
-        renderTransitTrips(zone, data);
-      } catch (e) {
-        clearTimeout(timer);
-        note('Horaires bus/train indisponibles pour le moment.');
-      }
-    }
-
-    function renderTransitTrips(zone, data) {
-      const cards = data.trips.map((t, i) => {
-        const pills = t.legs.map(l => {
-          if (l.kind === 'walk') {
-            if (!l.distM || l.distM < 50) return '';
-            return `<span class="trip-pill" style="background:${TRIP_STYLE.walk.color};"><i class="fas fa-walking"></i> ${fmtMetres(l.distM)}</span>`;
-          }
-          const st = TRIP_STYLE[l.mode] || TRIP_STYLE.other;
-          return `<span class="trip-pill" style="background:${st.color};"><i class="fas ${st.icon}"></i> ${escHtml(l.label)}</span>`;
-        }).join('');
-        return `
-          <div class="route-card trip-card" data-trip="${i}" onclick="showTrip(${i})">
-            <div class="route-top">
-              <div class="route-duration">${escHtml(t.dep)} → ${escHtml(t.arr)}</div>
-              <div class="route-price">${fmtDuree(t.durationMin)}</div>
-            </div>
-            <div class="route-modes">${pills}</div>
-            <div class="route-meta">
-              <span><i class="fas fa-exchange-alt"></i> ${t.transfers} corr.</span>
-              <span><i class="fas fa-walking"></i> ${fmtMetres(t.walkM)}</span>
-            </div>
-            <div class="trip-detail" id="tripDetail${i}" style="display:none;"></div>
-          </div>`;
-      }).join('');
-      zone.innerHTML = `
-        <div style="font-size:12px;font-weight:700;color:var(--text-muted);margin:6px 0 10px;text-transform:uppercase;letter-spacing:0.4px;">Bus / train — horaires réels</div>
-        ${cards}
-        <div style="font-size:11px;color:var(--text-muted);margin-top:4px;">Données : Trafiklab.se (ResRobot)</div>`;
-    }
-
-    function tripStep(st, time, title, desc) {
-      return `<div class="step-item">
-        <div class="step-icon" style="background:${st.color}"><i class="fas ${st.icon}"></i></div>
-        <div class="step-content">
-          <div class="step-title">${time ? `<span style="color:var(--text-muted);font-weight:600;margin-right:6px;">${escHtml(time)}</span>` : ''}${title}</div>
-          <div class="step-desc">${desc}</div>
-        </div>
-      </div>`;
-    }
-
-    function showTrip(i) {
-      if (!tripCtx || !tripCtx.trips[i]) return;
-      const t = tripCtx.trips[i];
-      document.querySelectorAll('.trip-card').forEach(c => c.classList.remove('selected'));
-      document.querySelectorAll('.trip-detail').forEach(d => { d.style.display = 'none'; });
-      const card = document.querySelector(`.trip-card[data-trip="${i}"]`);
-      if (card) card.classList.add('selected');
-
-      const det = document.getElementById('tripDetail' + i);
-      if (det) {
-        det.style.display = 'block';
-        det.innerHTML = '<div style="height:10px;"></div>' + t.legs.map(l => {
-          if (l.kind === 'walk') {
-            const label = l.transfer ? 'Correspondance à pied' : 'Marcher';
-            const vers = l.to && l.to.name ? `jusqu’à ${escHtml(l.to.name)} · ` : '';
-            const dist = l.distM ? `${fmtMetres(l.distM)} · ` : '';
-            return tripStep(TRIP_STYLE.walk, l.from.time, label, `${vers}${dist}${l.minutes} min`);
-          }
-          const st = TRIP_STYLE[l.mode] || TRIP_STYLE.other;
-          const arrets = l.stops ? `${l.stops} arrêt${l.stops > 1 ? 's' : ''} · ` : '';
-          return tripStep(
-            st, l.from.time,
-            `${escHtml(l.label)}${l.direction ? ' → ' + escHtml(l.direction) : ''}`,
-            `${escHtml(l.from.name)} (${escHtml(l.from.time)}) → ${escHtml(l.to.name)} (${escHtml(l.to.time)}) · ${arrets}${l.minutes} min`
-          );
-        }).join('');
-      }
-
-      routeLayer.clearLayers();
-      const points = [];
-      t.legs.forEach(l => {
-        const st = TRIP_STYLE[l.kind === 'walk' ? 'walk' : l.mode] || TRIP_STYLE.other;
-        L.polyline(l.path, {
-          color: st.color, weight: l.kind === 'walk' ? 4 : 6, opacity: 0.9,
-          dashArray: l.kind === 'walk' ? '6 8' : null, lineJoin: 'round'
-        }).addTo(routeLayer);
-        l.path.forEach(p => points.push(p));
-        if (l.kind === 'transit') {
-          L.circleMarker([l.from.lat, l.from.lng], { radius: 5, color: st.color, fillColor: '#ffffff', fillOpacity: 1, weight: 3 }).addTo(routeLayer);
-        }
-      });
-      const f = tripCtx.from, e = tripCtx.to;
-      L.circleMarker([f.lat, f.lng], { radius: 9, color: '#22c55e', fillColor: '#22c55e', fillOpacity: 0.8, weight: 2 }).addTo(routeLayer);
-      L.circleMarker([e.lat, e.lng], { radius: 9, color: '#ef4444', fillColor: '#ef4444', fillOpacity: 0.8, weight: 2 }).addTo(routeLayer);
-      if (points.length) map.fitBounds(L.latLngBounds(points), { padding: [60, 60] });
     }
 
     function searchPlaces(query) {
@@ -3953,7 +3727,6 @@
       const mode = currentMode || 'all';
       const distLabel = dist < 1 ? Math.round(dist*1000)+' m' : dist.toFixed(1)+' km';
       const cards = [];
-      const transitCards = [];
       if (mode === 'all' || mode === 'bike') {
         cards.push(`<div class="route-card" onclick="goToAddress(${lat},${lng},'bike',${bikeMin})">
           <div class="route-top"><div class="route-duration">${bikeMin} min</div><div class="route-price">Gratuit</div></div>
@@ -3961,18 +3734,17 @@
           <div class="route-meta"><span>${distLabel}</span></div></div>`);
       }
       if (mode === 'all' || mode === 'bus') {
-        transitCards.push(`<div class="route-card" onclick="goToAddress(${lat},${lng},'bus',${busMin})">
+        cards.push(`<div class="route-card" onclick="goToAddress(${lat},${lng},'bus',${busMin})">
           <div class="route-top"><div class="route-duration">${busMin} min</div><div class="route-price">25–34 kr</div></div>
           <div class="route-modes"><span class="mode-pill bus"><i class="fas fa-bus"></i> Bus</span></div>
           <div class="route-meta"><span>${distLabel}</span></div></div>`);
       }
       if (mode === 'all' || mode === 'train') {
-        transitCards.push(`<div class="route-card" onclick="goToAddress(${lat},${lng},'train',${Math.max(busMin, 12)})">
+        cards.push(`<div class="route-card" onclick="goToAddress(${lat},${lng},'train',${Math.max(busMin, 12)})">
           <div class="route-top"><div class="route-duration">${Math.max(busMin, 12)} min</div><div class="route-price">25–34 kr</div></div>
           <div class="route-modes"><span class="mode-pill train"><i class="fas fa-train"></i> Train</span></div>
           <div class="route-meta"><span>${distLabel}</span></div></div>`);
       }
-      if (transitCards.length) cards.push('<div id="transitTrips">' + transitCards.join('') + '</div>');
       if (mode === 'all' || mode === 'walk') {
         cards.push(`<div class="route-card" onclick="goToAddress(${lat},${lng},'walk',${walkMin})">
           <div class="route-top"><div class="route-duration">${walkMin} min</div><div class="route-price">Gratuit</div></div>
@@ -3985,7 +3757,6 @@
           <div style="font-size:13px;font-weight:600;color:var(--text-muted);margin-bottom:10px;text-transform:uppercase;letter-spacing:0.4px;">Y aller — ${mode === 'all' ? 'tous modes' : mode}</div>
           ${cards.join('') || '<div class="state-message"><p>Aucun itinéraire pour ce mode</p></div>'}
         </div>`;
-      loadTransitTrips(userLat, userLng, lat, lng, { name: 'Ma position', lat: userLat, lng: userLng }, { name: name, lat: lat, lng: lng });
     }
 
     async function goToAddress(lat, lng, mode, minutes) {
@@ -5278,7 +5049,7 @@ function renderRoutes(routes) {
       lastSource: 'mock',
 
       async getDepartures(stopName = 'Malmö C') {
-        if (CONFIG.dataMode === 'live') {
+        if (CONFIG.dataMode === 'live' && CONFIG.apiBase) {
           try {
             const ctrl = new AbortController();
             const timer = setTimeout(() => ctrl.abort(), 4000);

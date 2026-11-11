@@ -8,7 +8,9 @@ const ASSETS = [
   './index.html',
   './manifest.json',
   './icon-192.png',
-  './icon-512.png'
+  './icon-512.png',
+  './vagvis-game.css',
+  './vagvis-game.js'
 ];
 
 self.addEventListener('install', (event) => {
