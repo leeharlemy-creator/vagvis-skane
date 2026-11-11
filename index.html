@@ -1315,21 +1315,19 @@
       // Style proche Google Maps (Carto Voyager / Esri Streets)
       if (theme === 'dark') {
         return {
-          url: 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',
+          url: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
           options: {
-            maxZoom: 20,
-            subdomains: 'abcd',
-            attribution: '© OpenStreetMap © CARTO'
+            maxZoom: 19,
+            attribution: '© OpenStreetMap'
           }
         };
       }
       // Voyager = fond clair, parcs verts, routes nettes (très proche Google)
       return {
-        url: 'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png',
+        url: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
         options: {
-          maxZoom: 20,
-          subdomains: 'abcd',
-          attribution: '© OpenStreetMap © CARTO'
+          maxZoom: 19,
+          attribution: '© OpenStreetMap'
         }
       };
     }
