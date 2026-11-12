@@ -720,26 +720,59 @@
       top: 0; left: 0; right: 0;
       z-index: 1100;
       display: none;
-      padding: 12px 16px;
-      padding-top: max(12px, env(safe-area-inset-top));
-      background: linear-gradient(180deg, rgba(15,40,70,0.92), rgba(15,40,70,0.75));
-      backdrop-filter: blur(16px);
+      padding: 14px 16px 12px;
+      padding-top: max(14px, env(safe-area-inset-top));
+      background: linear-gradient(180deg, rgba(10,28,55,0.96), rgba(15,40,70,0.88));
+      backdrop-filter: blur(20px);
+      -webkit-backdrop-filter: blur(20px);
       color: white;
       border-bottom: 1px solid rgba(255,255,255,0.12);
+      box-shadow: 0 8px 28px rgba(0,0,0,0.35);
     }
     #navBanner.active { display: block; }
+    #navBanner .nav-row {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+    }
+    #navBanner .nav-turn-icon {
+      width: 56px;
+      height: 56px;
+      border-radius: 16px;
+      background: linear-gradient(145deg, #3b82f6, #1d4ed8);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 28px;
+      flex-shrink: 0;
+      box-shadow: 0 4px 14px rgba(37,99,235,0.5);
+    }
     #navBanner .nav-instr {
-      font-size: 17px;
+      font-size: 18px;
+      font-weight: 800;
+      line-height: 1.2;
+      letter-spacing: -0.2px;
+    }
+    #navBanner .nav-next-dist {
+      font-size: 14px;
       font-weight: 700;
-      line-height: 1.25;
-      margin-bottom: 4px;
+      color: #93c5fd;
+      margin-top: 3px;
     }
     #navBanner .nav-meta {
       font-size: 13px;
-      opacity: 0.85;
+      opacity: 0.9;
       display: flex;
-      gap: 12px;
+      gap: 14px;
       flex-wrap: wrap;
+      margin-top: 10px;
+      padding-top: 8px;
+      border-top: 1px solid rgba(255,255,255,0.12);
+    }
+    #navBanner .nav-meta span {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
     }
     #navBanner .nav-actions {
       display: flex;
@@ -749,7 +782,7 @@
     #navBanner button {
       border: none;
       border-radius: 20px;
-      padding: 8px 14px;
+      padding: 9px 16px;
       font-weight: 700;
       font-size: 13px;
       cursor: pointer;
@@ -761,6 +794,62 @@
     #navRecenterBtn {
       background: rgba(255,255,255,0.2);
       color: white;
+    }
+    #navProgress {
+      height: 4px;
+      background: rgba(255,255,255,0.15);
+      border-radius: 2px;
+      margin-top: 10px;
+      overflow: hidden;
+    }
+    #navProgress > i {
+      display: block;
+      height: 100%;
+      width: 0%;
+      background: linear-gradient(90deg, #60a5fa, #34d399);
+      border-radius: 2px;
+      transition: width 0.4s ease;
+    }
+    /* Carte flottante prochaine manœuvre (style Google Maps) */
+    #navManeuverCard {
+      display: none;
+      position: absolute;
+      left: 12px;
+      right: 12px;
+      bottom: calc(140px + env(safe-area-inset-bottom));
+      z-index: 1050;
+      background: rgba(255,255,255,0.96);
+      color: #0f2740;
+      border-radius: 18px;
+      padding: 14px 16px;
+      box-shadow: 0 10px 32px rgba(0,0,0,0.28);
+      backdrop-filter: blur(12px);
+      align-items: center;
+      gap: 14px;
+    }
+    [data-theme="dark"] #navManeuverCard {
+      background: rgba(22,40,64,0.96);
+      color: #f0f7fc;
+    }
+    #navManeuverCard.active { display: flex; }
+    #navManeuverCard .man-icon {
+      width: 52px; height: 52px;
+      border-radius: 14px;
+      background: #2563eb;
+      color: white;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 26px;
+      flex-shrink: 0;
+    }
+    #navManeuverCard .man-text { flex: 1; min-width: 0; }
+    #navManeuverCard .man-title {
+      font-size: 16px; font-weight: 800; line-height: 1.2;
+    }
+    #navManeuverCard .man-sub {
+      font-size: 13px; color: var(--text-secondary, #3d5a73); margin-top: 3px;
+    }
+    #navManeuverCard .man-dist {
+      font-size: 20px; font-weight: 800; color: #2563eb; white-space: nowrap;
     }
 
     /* ========== RESPONSIVE / MOBILE-FIRST ========== */
@@ -945,6 +1034,75 @@
     .bottom-sheet .routes-container {
       min-height: 160px;
     }
+
+    /* Contraste renforcé — textes lisibles sur toutes les rubriques */
+    [data-theme="ios"] .bottom-sheet,
+    [data-theme="light"] .bottom-sheet {
+      --text: #0a1f33;
+      --text-secondary: #1e3a54;
+      --text-muted: #4a6a85;
+    }
+    [data-theme="ios"] .sheet-title,
+    [data-theme="light"] .sheet-title {
+      color: #0a1f33 !important;
+    }
+    [data-theme="ios"] .transport-tab,
+    [data-theme="light"] .transport-tab {
+      color: #1e3a54;
+      border-color: rgba(30, 58, 84, 0.18);
+      background: rgba(255,255,255,0.85);
+    }
+    [data-theme="ios"] .transport-tab.active,
+    [data-theme="light"] .transport-tab.active {
+      color: #ffffff !important;
+      background: #2563eb !important;
+      border-color: #2563eb !important;
+    }
+    [data-theme="ios"] .route-card,
+    [data-theme="light"] .route-card {
+      color: #0a1f33;
+      background: #ffffff;
+      border: 1px solid rgba(30, 58, 84, 0.12);
+    }
+    [data-theme="ios"] .route-duration,
+    [data-theme="light"] .route-duration {
+      color: #0a1f33 !important;
+    }
+    [data-theme="ios"] .quick-chip,
+    [data-theme="light"] .quick-chip {
+      color: #1e3a54;
+      background: #ffffff;
+      border: 1px solid rgba(30, 58, 84, 0.15);
+    }
+    [data-theme="dark"] .sheet-title {
+      color: #ffffff !important;
+    }
+    [data-theme="dark"] .transport-tab {
+      color: #e8f2fc;
+      background: rgba(255,255,255,0.08);
+    }
+    [data-theme="dark"] .transport-tab.active {
+      color: #0a1624 !important;
+      background: #7dd3fc !important;
+      border-color: #7dd3fc !important;
+      font-weight: 800;
+    }
+    #alertsBar {
+      color: #7f1d1d !important;
+      background: rgba(254, 226, 226, 0.95) !important;
+      border: 1px solid rgba(239, 68, 68, 0.45) !important;
+    }
+    #alertsBar .alerts-title {
+      color: #b91c1c !important;
+    }
+    [data-theme="dark"] #alertsBar {
+      color: #fecaca !important;
+      background: rgba(127, 29, 29, 0.55) !important;
+    }
+    [data-theme="dark"] #alertsBar .alerts-title {
+      color: #fca5a5 !important;
+    }
+
   </style>
   <link rel="stylesheet" href="./vagvis-game.css">
   <script src="./vagvis-game.js" defer></script>
@@ -952,16 +1110,31 @@
 <body>
   <div id="map"></div>
   <div id="navBanner">
-    <div class="nav-instr" id="navInstr">Suivez l'itinéraire</div>
+    <div class="nav-row">
+      <div class="nav-turn-icon" id="navTurnIcon">↑</div>
+      <div style="flex:1;min-width:0;">
+        <div class="nav-instr" id="navInstr">Suivez l'itinéraire</div>
+        <div class="nav-next-dist" id="navNextDist">—</div>
+      </div>
+    </div>
     <div class="nav-meta">
-      <span id="navDist">—</span>
-      <span id="navEta">—</span>
+      <span id="navDist">📍 —</span>
+      <span id="navEta">⏱ —</span>
       <span id="navModeLabel">—</span>
     </div>
+    <div id="navProgress"><i id="navProgressBar"></i></div>
     <div class="nav-actions">
       <button type="button" id="navStopBtn" onclick="stopNavigation()">Arrêter</button>
       <button type="button" id="navRecenterBtn" onclick="recenterNavigation()">Recentrer</button>
     </div>
+  </div>
+  <div id="navManeuverCard">
+    <div class="man-icon" id="manIcon">↑</div>
+    <div class="man-text">
+      <div class="man-title" id="manTitle">Prochaine manœuvre</div>
+      <div class="man-sub" id="manSub">—</div>
+    </div>
+    <div class="man-dist" id="manDist">—</div>
   </div>
   <div id="map3d"></div>
   <div id="mapGoogle"></div>
@@ -1342,7 +1515,7 @@
           }
         };
       }
-      // Style proche Google Maps (Carto Voyager / Esri Streets)
+      // Style doux type Facebook / Meta map (pastel, mer claire, labels légers)
       if (theme === 'dark') {
         return {
           url: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
@@ -1352,7 +1525,7 @@
           }
         };
       }
-      // Voyager = fond clair, parcs verts, routes nettes (très proche Google)
+      // Positron = fond très clair, eau douce, écritures discrètes (proche de ta capture)
       return {
         url: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
         options: {
@@ -1538,16 +1711,16 @@
       if (tileLayer && map) map.removeLayer(tileLayer);
       tileLayer = L.tileLayer(cfg.url, cfg.options).addTo(map);
 
-      // Pas de filtre agressif : Carto / Mapbox sont déjà jolis
+      // Rendu doux type Facebook Map
       const pane = document.querySelector('.leaflet-tile-pane');
       if (pane) {
         if (mapType === 'satellite') {
           pane.style.filter = 'none';
         } else if (theme === 'dark') {
-          pane.style.filter = 'none'; // Carto dark_all déjà sombre
+          pane.style.filter = 'brightness(1.05) contrast(1.05)';
         } else {
-          // Légère nette pour un rendu type Google
-          pane.style.filter = 'contrast(1.04) saturate(1.05)';
+          // Pastel : un peu plus de lumière, saturation mer/parcs
+          pane.style.filter = 'brightness(1.06) contrast(0.98) saturate(1.12)';
         }
       }
 
@@ -2714,29 +2887,77 @@
       }
     }
 
+    // Suivi GPS continu (hors navigation) pour une position plus stable
+    let gpsWatchId = null;
+    let lastGpsAccuracy = null;
+
+    function applyGpsPosition(pos, opts) {
+      const acc = pos.coords.accuracy;
+      // Filtre anti-saut : ignorer une position beaucoup moins précise
+      if (lastGpsAccuracy != null && acc > lastGpsAccuracy * 2.5 && acc > 80) {
+        return;
+      }
+      lastGpsAccuracy = acc;
+      userLat = pos.coords.latitude;
+      userLng = pos.coords.longitude;
+      if (userMarker) userMarker.setLatLng([userLat, userLng]);
+      if (accuracyCircle && map) {
+        accuracyCircle.setLatLng([userLat, userLng]);
+        accuracyCircle.setRadius(Math.min(100, Math.max(10, acc || 25)));
+      }
+      updateGpsDisplay(userLat, userLng, acc, 'gps');
+      if (typeof pos.coords.heading === 'number' && !isNaN(pos.coords.heading) && (pos.coords.speed || 0) > 0.3) {
+        setNavHeading(pos.coords.heading);
+      }
+      try { checkProximityAlerts(userLat, userLng, false); } catch (_) {}
+      if (opts && opts.centerMap) {
+        map.setView([userLat, userLng], navActive ? 17 : Math.max(map.getZoom(), 14));
+      }
+      if (opts && opts.toast) {
+        const a = acc != null ? Math.round(acc) + ' m' : '?';
+        showToast('GPS OK · précision ±' + a);
+      }
+      if (document.getElementById('tabNearby')?.classList.contains('active')) {
+        renderNearby();
+      }
+    }
+
+    function startGpsTracking() {
+      if (!navigator.geolocation || gpsWatchId != null) return;
+      gpsWatchId = navigator.geolocation.watchPosition(
+        (pos) => applyGpsPosition(pos, { centerMap: false }),
+        () => {},
+        { enableHighAccuracy: true, maximumAge: 3000, timeout: 15000 }
+      );
+    }
+
     function locateUser() {
       if (!navigator.geolocation) {
         showToast('Géolocalisation non disponible');
         return;
       }
+      showToast('Recherche GPS haute précision…');
       navigator.geolocation.getCurrentPosition(
         (pos) => {
-          userLat = pos.coords.latitude;
-          userLng = pos.coords.longitude;
-          if (userMarker) userMarker.setLatLng([userLat, userLng]);
-          map.setView([userLat, userLng], navActive ? 17 : 14);
-          updateGpsDisplay(userLat, userLng, pos.coords.accuracy, 'gps');
-          if (typeof pos.coords.heading === 'number' && !isNaN(pos.coords.heading)) {
-            setNavHeading(pos.coords.heading);
+          applyGpsPosition(pos, { centerMap: true, toast: true });
+          // Cercle de précision
+          if (map) {
+            if (accuracyCircle) map.removeLayer(accuracyCircle);
+            accuracyCircle = L.circle([userLat, userLng], {
+              radius: Math.min(80, Math.max(12, pos.coords.accuracy || 25)),
+              color: '#1a73e8', weight: 1, fillColor: '#1a73e8', fillOpacity: 0.12
+            }).addTo(map);
           }
-          try { checkProximityAlerts(userLat, userLng, true); } catch (_) {}
-          showToast('Position GPS mise à jour');
-          if (document.getElementById('tabNearby')?.classList.contains('active')) {
-            renderNearby();
-          }
+          startGpsTracking();
+          startOrientation();
         },
-        () => showToast('Impossible d\'obtenir la position'),
-        { enableHighAccuracy: true, timeout: 8000 }
+        (err) => {
+          const msg = err && err.code === 1 ? 'Autorise la localisation dans Réglages' :
+                      err && err.code === 3 ? 'GPS timeout — réessaie dehors' :
+                      'Impossible d\'obtenir la position';
+          showToast(msg);
+        },
+        { enableHighAccuracy: true, timeout: 12000, maximumAge: 0 }
       );
     }
 
@@ -3194,18 +3415,19 @@
 
     function stepInstruction(step) {
       if (!step) return 'Continuez tout droit';
-      const t = (step.instruction || '').toLowerCase();
+      const t = (step.instruction || step.type || '').toLowerCase();
       const name = step.name ? ` sur ${step.name}` : '';
       const mod = (step.modifier || '').toLowerCase();
       if (t === 'depart') return 'Départ' + name;
       if (t === 'arrive' || t === 'destination') return 'Vous êtes arrivé';
-      if (t === 'turn') {
-        if (mod.includes('left')) return 'Tournez à gauche' + name;
-        if (mod.includes('right')) return 'Tournez à droite' + name;
-        if (mod.includes('slight left')) return 'Légèrement à gauche' + name;
-        if (mod.includes('slight right')) return 'Légèrement à droite' + name;
+      if (t === 'turn' || t.includes('turn')) {
+        if (mod.includes('slight left') || mod === 'slight left') return 'Légèrement à gauche' + name;
+        if (mod.includes('slight right') || mod === 'slight right') return 'Légèrement à droite' + name;
         if (mod.includes('sharp left')) return 'Virage serré à gauche' + name;
         if (mod.includes('sharp right')) return 'Virage serré à droite' + name;
+        if (mod.includes('left') || mod === 'left') return 'Tournez à gauche' + name;
+        if (mod.includes('right') || mod === 'right') return 'Tournez à droite' + name;
+        if (mod.includes('uturn') || mod.includes('u-turn')) return 'Demi-tour' + name;
         return 'Tournez' + name;
       }
       if (t === 'new name') return 'Continuez' + name;
@@ -3219,47 +3441,110 @@
       return (step.name ? `Continuez sur ${step.name}` : 'Suivez l\'itinéraire');
     }
 
+    function stepIcon(step) {
+      if (!step) return '↑';
+      const t = (step.instruction || step.type || '').toLowerCase();
+      const mod = (step.modifier || '').toLowerCase();
+      if (t === 'arrive' || t === 'destination') return '🏁';
+      if (t === 'depart') return '▶';
+      if (t === 'roundabout' || t === 'rotary') return '↻';
+      if (t === 'merge' || t === 'on ramp') return '⤴';
+      if (t === 'off ramp') return '⤵';
+      if (mod.includes('uturn') || mod.includes('u-turn')) return '↩';
+      if (mod.includes('left')) return '↰';
+      if (mod.includes('right')) return '↱';
+      if (t === 'turn') return '↗';
+      return '↑';
+    }
+
+    function formatNavDist(m) {
+      if (m == null || isNaN(m)) return '—';
+      if (m < 1000) return Math.max(10, Math.round(m / 10) * 10) + ' m';
+      return (m / 1000).toFixed(1).replace('.0', '') + ' km';
+    }
+
+    let navTotalDist = 0;
+
     function updateNavUi(lat, lng) {
       if (!navActive || !navDest) return;
       const near = nearestPointOnRoute(lat, lng, navCoords);
       const remain = remainingDistance(lat, lng, navCoords, near.index);
-      const etaMin = Math.max(1, Math.round(remain / (navDest.mode === 'bike' ? 250 : navDest.mode === 'walk' ? 80 : 120)));
+      const speed = navDest.mode === 'bike' ? 250 : navDest.mode === 'walk' ? 80 : 120;
+      const etaMin = Math.max(1, Math.round(remain / speed));
 
-      // Prochaine instruction
       let instr = 'Suivez l\'itinéraire';
+      let icon = '↑';
+      let nextStepDist = remain;
+      let street = '';
+
       if (navSteps.length) {
-        // Avancer l'étape si on est proche
         while (navStepIndex < navSteps.length - 1) {
           const s = navSteps[navStepIndex];
-          // heuristique : passer à l'étape suivante après ~80% de sa distance
-          if ((s._cumDist || 0) > 0 && near.dist < 25 && near.index > (s._idx || 0)) {
+          const stepEnd = (s._cumDist || 0) + (s.distance || 40);
+          const traveled = (navTotalDist || remain + (navTotalDist - remain)) ;
+          // Avancer si on a parcouru la distance de l'étape (approx)
+          const fromStart = (navTotalDist || 0) - remain;
+          if (fromStart > stepEnd - 25) {
             navStepIndex++;
           } else break;
         }
-        instr = stepInstruction(navSteps[Math.min(navStepIndex, navSteps.length - 1)]);
+        const step = navSteps[Math.min(navStepIndex, navSteps.length - 1)];
+        instr = stepInstruction(step);
+        icon = stepIcon(step);
+        street = step.name || '';
+        // Distance jusqu'à la prochaine manœuvre
+        const fromStart = Math.max(0, (navTotalDist || 0) - remain);
+        nextStepDist = Math.max(0, ((step._cumDist || 0) + (step.distance || 50)) - fromStart);
+        if (nextStepDist > remain) nextStepDist = Math.min(remain, step.distance || remain);
       } else if (navCoords.length > near.index + 1) {
         const next = navCoords[Math.min(near.index + 3, navCoords.length - 1)];
         const br = bearingBetween(lat, lng, next[0], next[1]);
         const diff = ((br - navHeading + 540) % 360) - 180;
-        if (Math.abs(diff) < 25) instr = 'Continuez tout droit';
-        else if (diff > 0) instr = 'Orientez-vous légèrement à droite';
-        else instr = 'Orientez-vous légèrement à gauche';
+        if (Math.abs(diff) < 25) { instr = 'Continuez tout droit'; icon = '↑'; }
+        else if (diff > 0) { instr = 'Orientez-vous à droite'; icon = '↱'; }
+        else { instr = 'Orientez-vous à gauche'; icon = '↰'; }
+        nextStepDist = Math.min(remain, 80);
       }
 
       const distEl = document.getElementById('navDist');
       const etaEl = document.getElementById('navEta');
       const instrEl = document.getElementById('navInstr');
       const modeEl = document.getElementById('navModeLabel');
-      if (instrEl) instrEl.textContent = instr;
-      if (distEl) distEl.textContent = remain < 1000 ? `${Math.round(remain)} m restants` : `${(remain / 1000).toFixed(1)} km restants`;
-      if (etaEl) etaEl.textContent = `~${etaMin} min`;
-      if (modeEl) modeEl.textContent = navDest.mode === 'bike' ? 'Vélo' : navDest.mode === 'walk' ? 'Marche' : 'Navigation';
+      const iconEl = document.getElementById('navTurnIcon');
+      const nextDistEl = document.getElementById('navNextDist');
+      const bar = document.getElementById('navProgressBar');
+      const manCard = document.getElementById('navManeuverCard');
 
-      // Arrivée
+      if (instrEl) instrEl.textContent = instr;
+      if (iconEl) iconEl.textContent = icon;
+      if (nextDistEl) nextDistEl.textContent = 'Dans ' + formatNavDist(nextStepDist);
+      if (distEl) distEl.textContent = '📍 ' + formatNavDist(remain) + ' restants';
+      if (etaEl) etaEl.textContent = '⏱ ~' + etaMin + ' min';
+      if (modeEl) modeEl.textContent = navDest.mode === 'bike' ? '🚲 Vélo' : navDest.mode === 'walk' ? '🚶 Marche' : '🚌 Trajet';
+
+      if (bar && navTotalDist > 0) {
+        const pct = Math.min(100, Math.max(0, ((navTotalDist - remain) / navTotalDist) * 100));
+        bar.style.width = pct.toFixed(1) + '%';
+      }
+
+      // Carte manœuvre flottante
+      if (manCard) {
+        manCard.classList.add('active');
+        const mi = document.getElementById('manIcon');
+        const mt = document.getElementById('manTitle');
+        const ms = document.getElementById('manSub');
+        const md = document.getElementById('manDist');
+        if (mi) mi.textContent = icon;
+        if (mt) mt.textContent = instr;
+        if (ms) ms.textContent = street || (navDest.name || 'Destination');
+        if (md) md.textContent = formatNavDist(nextStepDist);
+      }
+
       const dDest = distanceM(lat, lng, navDest.lat, navDest.lng);
       if (dDest < 35) {
         if (instrEl) instrEl.textContent = 'Vous êtes arrivé !';
-        showToast('Destination atteinte');
+        if (iconEl) iconEl.textContent = '🏁';
+        showToast('🏁 Destination atteinte');
         setTimeout(() => stopNavigation(), 2500);
       }
     }
@@ -3334,6 +3619,11 @@
         cum += s.distance || 0;
         return o;
       });
+      navTotalDist = 0;
+      for (let i = 0; i < navCoords.length - 1; i++) {
+        navTotalDist += distanceM(navCoords[i][0], navCoords[i][1], navCoords[i+1][0], navCoords[i+1][1]);
+      }
+      if (!navTotalDist) navTotalDist = distanceM(userLat, userLng, toLat, toLng);
       navStepIndex = 0;
       navDest = { lat: toLat, lng: toLng, name: name || 'Destination', mode: mode || 'walk' };
       try { autoAlertForDestination(name || 'Destination', toLat, toLng); } catch (_) {}
@@ -3352,8 +3642,8 @@
       if (navWatchId != null) navigator.geolocation.clearWatch(navWatchId);
       navWatchId = navigator.geolocation.watchPosition(
         onNavPosition,
-        () => showToast('Signal GPS faible'),
-        { enableHighAccuracy: true, maximumAge: 1000, timeout: 10000 }
+        () => showToast('Signal GPS faible — déplace-toi ou sors à l\'extérieur'),
+        { enableHighAccuracy: true, maximumAge: 800, timeout: 12000 }
       );
       startOrientation();
       collapseSheet();
@@ -3362,6 +3652,9 @@
 
     function stopNavigation() {
       navActive = false;
+      document.getElementById('navManeuverCard')?.classList.remove('active');
+      const bar = document.getElementById('navProgressBar');
+      if (bar) bar.style.width = '0%';
       navDest = null;
       navCoords = [];
       navSteps = [];
@@ -5441,6 +5734,7 @@ function renderRoutes(routes) {
       update3dButton();
       updateTrafficButton();
       try { autoAlertOnLoad(); } catch (_) { try { renderAlertsBar(); } catch (__) {} }
+      // (Le suivi GPS démarre seulement quand on appuie sur « localiser », pas à l'ouverture)
 
       // PWA — Service Worker + installation
       if ('serviceWorker' in navigator) {
