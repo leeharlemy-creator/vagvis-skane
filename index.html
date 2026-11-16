@@ -1103,6 +1103,22 @@
       color: #fca5a5 !important;
     }
 
+
+    /* Carte + contrôles alignés thème iOS (ciel) */
+    [data-theme="ios"] .leaflet-control-zoom a,
+    :root .leaflet-control-zoom a {
+      background: rgba(255,255,255,0.92) !important;
+      color: #3b9ee0 !important;
+      border-color: rgba(59,158,224,0.25) !important;
+    }
+    [data-theme="ios"] .nav-cursor,
+    :root .nav-cursor {
+      filter: drop-shadow(0 2px 6px rgba(59,158,224,0.45));
+    }
+    [data-theme="ios"] #map {
+      background: #ece9e4;
+    }
+
   </style>
   <link rel="stylesheet" href="./vagvis-game.css">
   <script src="./vagvis-game.js" defer></script>
@@ -1424,9 +1440,10 @@
 
       // Backend GTFS — même origine si servi via backend (port 3001), sinon localhost:3001
       // Lancer : cd backend && node server.js  →  http://localhost:3001
-      apiBase: (typeof location !== 'undefined' && location.port === '3001')
+      // '' = même origine (Vercel / backend local :3001). Sinon localhost:3001 en dev fichier.
+      apiBase: (typeof location !== 'undefined' && (location.port === '3001' || /vercel\.app$|netlify\.app$/i.test(location.hostname) || location.protocol === 'https:'))
         ? ''
-        : 'http://localhost:3001',
+        : (typeof location !== 'undefined' && location.protocol.startsWith('http') ? 'http://localhost:3001' : ''),
 
       // 'mock' = données locales | 'live' = appelle le backend /api/departures
       dataMode: 'live'
@@ -1474,6 +1491,108 @@
     let currentRoutes = [];
     let isExpanded = false;
 
+    /* ============================================================
+       Rendu « Snap Map » : on recolore les tuiles OpenStreetMap
+       (mer bleu clair, terre gris chaud, parcs vert très pâle,
+       routes blanches). Couleurs mesurées sur ta capture.
+       Pour désactiver : localStorage.setItem('vagvis-snaptone','off')
+       ============================================================ */
+    const SNAP_PAIRS = [
+      [0xf2efe9, 0xece9e4], // terre
+      [0xaad3df, 0x8dcbf7], // eau
+      [0xcdebb0, 0xe8f4e0], // herbe
+      [0xc8facc, 0xe8f4e0], // parc
+      [0xadd19e, 0xdceed2], // bois
+      [0xe0dfdf, 0xe6e3de], // zone résidentielle
+      [0xd9d0c9, 0xdcd8d3], // bâtiments
+      [0xffffff, 0xffffff], // routes blanches
+      [0xe892a2, 0xfafafa], // autoroute
+      [0xf9b29c, 0xfafafa], // route nationale
+      [0xfcd6a4, 0xffffff], // route principale
+      [0xf7fabf, 0xffffff], // route secondaire
+      [0xdc2e6b, 0xcfcac4], // contour autoroute
+      [0xc84e2f, 0xcfcac4], // contour nationale
+      [0xa06b00, 0xcfcac4], // contour principale
+      [0x707d05, 0xcfcac4]  // contour secondaire
+    ];
+    const SNAP_REFS = (function () {
+      const ch = (c, s) => (c >> s) & 255;
+      const refs = [];
+      const add = (a, b) => refs.push({
+        r: ch(a, 16), g: ch(a, 8), b: ch(a, 0),
+        dr: ch(b, 16) - ch(a, 16), dg: ch(b, 8) - ch(a, 8), db: ch(b, 0) - ch(a, 0)
+      });
+      SNAP_PAIRS.forEach(p => add(p[0], p[1]));
+      // Points intermédiaires pour adoucir les bords (terre/eau, terre/herbe, terre/blanc, eau/blanc)
+      const mix = (a, b, t, s) => Math.round(ch(a, s) * (1 - t) + ch(b, s) * t);
+      const blend = (a, b, t) => (mix(a, b, t, 16) << 16) | (mix(a, b, t, 8) << 8) | mix(a, b, t, 0);
+      [[0, 1], [0, 2], [0, 7], [1, 7]].forEach(ix => {
+        const A = SNAP_PAIRS[ix[0]], B = SNAP_PAIRS[ix[1]];
+        [0.25, 0.5, 0.75].forEach(t => add(blend(A[0], B[0], t), blend(A[1], B[1], t)));
+      });
+      return refs;
+    })();
+    const SNAP_SIGMA2 = 2 * 10 * 10;
+    const snapCache = new Map();
+    function snapColorKey(r, g, b) {
+      const key = (r << 16) | (g << 8) | b;
+      let out = snapCache.get(key);
+      if (out !== undefined) return out;
+      let W = 0.01, dr = 0, dg = 0, db = 0;
+      for (let i = 0; i < SNAP_REFS.length; i++) {
+        const q = SNAP_REFS[i];
+        const d2 = (r - q.r) * (r - q.r) + (g - q.g) * (g - q.g) + (b - q.b) * (b - q.b);
+        if (d2 > 2500) continue;
+        const w = Math.exp(-d2 / SNAP_SIGMA2);
+        W += w; dr += w * q.dr; dg += w * q.dg; db += w * q.db;
+      }
+      const cl = v => Math.max(0, Math.min(255, Math.round(v)));
+      out = (cl(r + dr / W) << 16) | (cl(g + dg / W) << 8) | cl(b + db / W);
+      if (snapCache.size > 60000) snapCache.clear();
+      snapCache.set(key, out);
+      return out;
+    }
+    function snapToneDisabled() {
+      try { return localStorage.getItem('vagvis-snaptone') === 'off'; } catch (_) { return false; }
+    }
+    const SnapTileLayer = L.TileLayer.extend({
+      createTile: function (coords, done) {
+        const size = this.getTileSize();
+        const tile = document.createElement('canvas');
+        tile.width = size.x; tile.height = size.y;
+        const url = this.getTileUrl(coords);
+        // Secours : si la recoloration est impossible, on affiche la tuile telle quelle
+        const plain = function () {
+          const img2 = new Image();
+          img2.onload = function () {
+            try { tile.getContext('2d').drawImage(img2, 0, 0, size.x, size.y); } catch (_) {}
+            done(null, tile);
+          };
+          img2.onerror = function () { done(new Error('tuile'), tile); };
+          img2.src = url;
+        };
+        const img = new Image();
+        img.crossOrigin = 'anonymous';
+        img.onload = function () {
+          try {
+            const ctx = tile.getContext('2d', { willReadFrequently: true });
+            ctx.drawImage(img, 0, 0, size.x, size.y);
+            const id = ctx.getImageData(0, 0, size.x, size.y);
+            const d = id.data;
+            for (let i = 0; i < d.length; i += 4) {
+              const c = snapColorKey(d[i], d[i + 1], d[i + 2]);
+              d[i] = (c >> 16) & 255; d[i + 1] = (c >> 8) & 255; d[i + 2] = c & 255;
+            }
+            ctx.putImageData(id, 0, 0);
+            done(null, tile);
+          } catch (e) { plain(); }
+        };
+        img.onerror = plain;
+        img.src = url;
+        return tile;
+      }
+    });
+
     let tileLayer = null;
     let mapType = localStorage.getItem('vagvis-maptype') || 'street'; // 'street' | 'satellite'
     let trafficEnabled = localStorage.getItem('vagvis-traffic') === '1';
@@ -1491,8 +1610,10 @@
           styleId = CONFIG.mapboxStyleSatellite || 'mapbox/satellite-streets-v12';
         } else if (theme === 'dark') {
           styleId = CONFIG.mapboxStyleDark || 'mapbox/dark-v11';
+        } else if (theme === 'ios') {
+          // Clair type Apple Maps
+          styleId = CONFIG.mapboxStyleStreet || 'mapbox/streets-v12';
         } else {
-          // Streets moderne, très lisible
           styleId = CONFIG.mapboxStyleStreet || 'mapbox/streets-v12';
         }
         return {
@@ -1515,7 +1636,7 @@
           }
         };
       }
-      // Style doux type Facebook / Meta map (pastel, mer claire, labels légers)
+      // Fonds GRATUITS sans clé (évite « API KEY REQUIRED » de CARTO)
       if (theme === 'dark') {
         return {
           url: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
@@ -1525,7 +1646,7 @@
           }
         };
       }
-      // Positron = fond très clair, eau douce, écritures discrètes (proche de ta capture)
+      // Mode clair classique
       return {
         url: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
         options: {
@@ -1709,18 +1830,23 @@
       if (theme === 'ios') theme = 'light';
       const cfg = getTileConfig(theme, mapType);
       if (tileLayer && map) map.removeLayer(tileLayer);
-      tileLayer = L.tileLayer(cfg.url, cfg.options).addTo(map);
+      // Rendu « Snap Map » sur la carte claire (OpenStreetMap recolorée) ; sinon tuiles normales
+      const useSnapTone = (theme === 'light') && mapType !== 'satellite'
+        && /tile\.openstreetmap\.org/.test(cfg.url) && !snapToneDisabled();
+      tileLayer = (useSnapTone ? new SnapTileLayer(cfg.url, cfg.options) : L.tileLayer(cfg.url, cfg.options)).addTo(map);
 
-      // Rendu doux type Facebook Map
+      // Teinte carte selon le thème (iOS = ciel bleu VāgVis)
       const pane = document.querySelector('.leaflet-tile-pane');
       if (pane) {
-        if (mapType === 'satellite') {
+        if (mapType === 'satellite' || useSnapTone) {
           pane.style.filter = 'none';
         } else if (theme === 'dark') {
-          pane.style.filter = 'brightness(1.05) contrast(1.05)';
+          pane.style.filter = 'brightness(1.08) contrast(1.05)';
+        } else if (theme === 'ios') {
+          // Voile bleuté + contraste doux pour coller au dégradé ciel
+          pane.style.filter = 'saturate(0.95) brightness(1.04) contrast(0.98)'; // (sans teinte : la carte OpenStreetMap est déjà en couleurs)
         } else {
-          // Pastel : un peu plus de lumière, saturation mer/parcs
-          pane.style.filter = 'brightness(1.06) contrast(0.98) saturate(1.12)';
+          pane.style.filter = 'saturate(1.05)';
         }
       }
 
@@ -2414,10 +2540,13 @@
 
       document.getElementById('sheetTitle').textContent = poi.name;
 
-      // Génération instantanée des options "Y aller en 1 clic"
-      const bikeMin = 8 + Math.floor(Math.random() * 12);
-      const busMin = 6 + Math.floor(Math.random() * 10);
-      const walkMin = 15 + Math.floor(Math.random() * 20);
+      // Durées réalistes selon la distance (plus de random optimiste)
+      const poiDist = haversine(userLat, userLng, poi.lat, poi.lng);
+      const estPoi = estimateSkaneTimes(poiDist);
+      const bikeMin = estPoi.bike;
+      const busMin = estPoi.bus;
+      const walkMin = estPoi.walk;
+      const trainMin = estPoi.train;
 
       let infoHtml = '';
       if (poi.type === 'park' || poi.type === 'beach') {
@@ -2588,13 +2717,15 @@
       }
       if (mode === 'all' || mode === 'bus') {
         modeCards.push(`<div class="route-card" onclick="goToPoi('bus', ${busMin})">
-            <div class="route-top"><div class="route-duration">${busMin + 2} min</div><div class="route-price">25–34 kr</div></div>
-            <div class="route-modes"><span class="mode-pill bus"><i class="fas fa-bus"></i> Bus</span><span class="mode-pill walk"><i class="fas fa-walking"></i> 2 min</span></div>
+            <div class="route-top"><div class="route-duration">${busMin} min</div><div class="route-price">25–34 kr</div></div>
+            <div style="font-size:12px;font-weight:600;color:var(--primary);margin:-4px 0 8px;">dont ~${estPoi.busWait} min d'attente</div>
+            <div class="route-modes"><span class="mode-pill bus"><i class="fas fa-bus"></i> Bus</span><span class="mode-pill walk"><i class="fas fa-walking"></i> arrêts</span></div>
             <div class="route-meta"><span>Via ${poi.nearestStop || 'arrêt proche'}</span></div></div>`);
       }
       if (mode === 'all' || mode === 'train') {
-        modeCards.push(`<div class="route-card" onclick="goToPoi('train', ${Math.max(busMin, 12)})">
-            <div class="route-top"><div class="route-duration">${Math.max(busMin, 12)} min</div><div class="route-price">25–34 kr</div></div>
+        modeCards.push(`<div class="route-card" onclick="goToPoi('train', ${trainMin})">
+            <div class="route-top"><div class="route-duration">${trainMin} min</div><div class="route-price">25–34 kr</div></div>
+            <div style="font-size:12px;font-weight:600;color:var(--primary);margin:-4px 0 8px;">dont ~6 min d'attente gare</div>
             <div class="route-modes"><span class="mode-pill train"><i class="fas fa-train"></i> Train</span></div>
             <div class="route-meta"><span>Via gare la plus proche</span></div></div>`);
       }
@@ -2668,7 +2799,121 @@
       return Math.max(1, Math.round(s / 60));
     }
 
+    /**
+     * Durées réalistes Skåne (urbaines, avec feux / attente bus).
+     * Comparé à Skånetrafiken : le bus n'est jamais « distance pure ».
+     * distKm = distance à vol d'oiseau (haversine).
+     */
+    function estimateSkaneTimes(distKm) {
+      const d = Math.max(0.05, distKm || 0.05);
+      // Marche ~4,5 km/h en ville → ~13,5 min/km (+ 1 min démarrage)
+      const walk = Math.max(4, Math.round(d * 14 + 1));
+      // Vélo urbain ~12–14 km/h avec feux → ~4,5–5 min/km (+ 1 min)
+      const bike = Math.max(5, Math.round(d * 5 + 1));
+      // Bus : attente moyenne 6 min + trajet ~16 km/h + 3 min marche aux arrêts
+      const busRide = Math.round(d * 3.8);
+      const busWait = d < 1.2 ? 5 : (d < 3 ? 7 : 8);
+      const busWalk = 3;
+      const bus = Math.max(10, busWait + busRide + busWalk);
+      // Train / Pågatåg : marche gare 5 min + attente 6 + trajet plus rapide
+      const train = Math.max(14, 5 + 6 + Math.round(d * 1.6));
+      return {
+        walk, bike, bus, train,
+        busWait,
+        note: 'Inclut attente bus / marche aux arrêts (style Skånetrafiken)'
+      };
+    }
+
+
+    /** Messages d'erreur API lisibles (FR) */
+    function apiErrorMessage(err) {
+      if (!err) return 'Erreur inconnue';
+      const code = err.code || '';
+      const status = err.status || 0;
+      const raw = (err.message || err.error || '').toString();
+      if (code === 'NO_KEY' || status === 401) return 'Clé ResRobot manquante ou invalide — configure le backend';
+      if (code === 'AUTH') return 'Clé ResRobot refusée (401) — vérifie RESROBOT_KEY';
+      if (code === 'RATE_LIMIT' || status === 429) return 'Quota Trafiklab atteint — réessaie dans quelques minutes';
+      if (code === 'TIMEOUT' || /abort|timeout/i.test(raw)) return 'Délai dépassé — réseau lent ou API lente';
+      if (code === 'NO_TRIPS' || status === 404) return 'Aucun trajet ResRobot pour cette destination';
+      if (code === 'BAD_COORDS' || status === 400) return 'Coordonnées invalides';
+      if (code === 'UPSTREAM' || status >= 500) return 'Service ResRobot temporairement indisponible';
+      if (/Failed to fetch|NetworkError|Load failed/i.test(raw)) return 'Backend injoignable — lance node server.js';
+      if (raw) return raw.length > 120 ? raw.slice(0, 117) + '…' : raw;
+      return 'Erreur API';
+    }
+
+    /** ResRobot via backend /api/trip (cle RESROBOT_KEY cote serveur) */
+    async function fetchResrobotRoutes(toLat, toLng) {
+      const base = (CONFIG.apiBase || '').replace(/\/$/, '');
+      if (!base && !(typeof location !== 'undefined' && location.port === '3001')) {
+        // Pas de backend configuré (ex. Netlify seul)
+        return { ok: false, code: 'NO_BACKEND', error: 'Pas de backend', message: 'Backend ResRobot non configuré', routes: [] };
+      }
+      const q = new URLSearchParams({
+        fromLat: String(userLat),
+        fromLng: String(userLng),
+        toLat: String(toLat),
+        toLng: String(toLng)
+      });
+      const url = (base || '') + '/api/trip?' + q.toString();
+      try {
+        const ctrl = new AbortController();
+        const timer = setTimeout(() => ctrl.abort(), 14000);
+        const res = await fetch(url, { signal: ctrl.signal });
+        clearTimeout(timer);
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok || data.ok === false) {
+          return {
+            ok: false,
+            code: data.code || ('HTTP_' + res.status),
+            status: res.status,
+            error: data.error || ('HTTP ' + res.status),
+            message: data.message || data.error || ('HTTP ' + res.status),
+            routes: []
+          };
+        }
+        if (!data.routes || !data.routes.length) {
+          return { ok: false, code: 'NO_TRIPS', error: 'Aucun trajet', message: 'Aucun trajet', routes: [] };
+        }
+        return data;
+      } catch (e) {
+        const name = e && e.name;
+        return {
+          ok: false,
+          code: name === 'AbortError' ? 'TIMEOUT' : 'NETWORK',
+          error: e.message || 'ResRobot indisponible',
+          message: e.message || 'ResRobot indisponible',
+          routes: []
+        };
+      }
+    }
+
+    function destCoordsFromName(name) {
+      const d = (name || '').toLowerCase();
+      const table = {
+        'trelleborg': [55.375, 13.157],
+        'lund': [55.7058, 13.1932],
+        'helsingborg': [56.0465, 12.6945],
+        'ystad': [55.4297, 13.8201],
+        'hyllie': [55.5623, 12.976],
+        'triangeln': [55.595, 13.0009],
+        'sodervarn': [55.589, 13.003],
+        'södervärn': [55.589, 13.003],
+        'malmö c': [55.6095, 13.0007],
+        'malmo c': [55.6095, 13.0007],
+        'copenhague': [55.6761, 12.5683],
+        'copenhagen': [55.6761, 12.5683],
+        'köpenhamn': [55.6761, 12.5683]
+      };
+      for (const [k, v] of Object.entries(table)) {
+        if (d.includes(k)) return { lat: v[0], lng: v[1], name: name };
+      }
+      return null;
+    }
+
     async function drawCalculatedRoute(toLat, toLng, mode, fallbackMin) {
+
       routeLayer.clearLayers();
       showToast('Calcul de l\'itinéraire…');
 
@@ -2681,18 +2926,27 @@
       let minutes = fallbackMin;
       let distLabel = '';
 
+      const distKm = haversine(userLat, userLng, toLat, toLng);
+      const est = estimateSkaneTimes(distKm);
+
       if (osrm && osrm.coords.length > 1) {
         latlngs = osrm.coords;
-        minutes = formatDurationMin(osrm.durationS);
-        // Ajustement vélo un peu plus rapide si OSRM foot a été utilisé par erreur
-        if (mode === 'bike' && profile === 'bike') {
-          minutes = formatDurationMin(osrm.durationS);
-        }
+        const osrmMin = formatDurationMin(osrm.durationS);
+        // OSRM foot/bike sous-estime souvent la ville (feux, détours)
+        if (mode === 'walk') minutes = Math.max(osrmMin, est.walk);
+        else if (mode === 'bike') minutes = Math.max(osrmMin, est.bike);
+        else if (mode === 'bus') minutes = est.bus; // OSRM ne fait pas le bus
+        else if (mode === 'train') minutes = est.train;
+        else minutes = Math.max(osrmMin, fallbackMin || est.walk);
         distLabel = formatDistance(osrm.distanceM);
       } else {
-        // Fallback ligne droite
         latlngs = [[userLat, userLng], [toLat, toLng]];
-        distLabel = formatDistance(haversine(userLat, userLng, toLat, toLng) * 1000);
+        distLabel = formatDistance(distKm * 1000);
+        if (mode === 'walk') minutes = est.walk;
+        else if (mode === 'bike') minutes = est.bike;
+        else if (mode === 'bus') minutes = est.bus;
+        else if (mode === 'train') minutes = est.train;
+        else minutes = fallbackMin || est.walk;
       }
 
       L.polyline(latlngs, {
@@ -2715,7 +2969,9 @@
       map.fitBounds(L.latLngBounds(latlngs).pad(0.18));
 
       const modeLabel = mode === 'bike' ? 'vélo' : mode === 'bus' ? 'bus + marche' : mode === 'train' ? 'train' : 'à pied';
-      showToast(`Itinéraire ${modeLabel} • ${minutes} min${distLabel ? ' • ' + distLabel : ''}`);
+      const waitHint = mode === 'bus' ? `dont ~${est.busWait} min d'attente` :
+                       mode === 'train' ? `dont ~6 min d'attente gare` : '';
+      showToast(`Itinéraire ${modeLabel} • ${minutes} min${waitHint ? ' (' + waitHint + ')' : ''}${distLabel ? ' • ' + distLabel : ''}`);
 
       // Bouton démarrer navigation dans le panneau
       const container = document.getElementById('routesContainer');
@@ -2731,6 +2987,7 @@
               <div class="route-duration" style="font-size:18px;">${minutes} min</div>
               <div class="route-price">${distLabel || ''}</div>
             </div>
+            ${waitHint ? `<div style="font-size:12px;font-weight:700;color:var(--primary);margin:-2px 0 8px;">${waitHint}</div>` : ''}
             <div class="route-meta" style="margin-bottom:12px;"><span>Itinéraire ${modeLabel}</span></div>
             <button type="button" onclick="startNavigation(${toLat},${toLng},'${mode}')"
               style="width:100%;background:#2563eb;color:white;border:none;border-radius:14px;padding:14px;font-weight:800;font-size:15px;cursor:pointer;">
@@ -3905,10 +4162,11 @@
       if (userMarker) userMarker.setLatLng([startLat, startLng]);
 
       const dist = haversine(startLat, startLng, endLat, endLng);
-      const walkMin = Math.max(3, Math.round(dist * 12));
-      const bikeMin = Math.max(2, Math.round(dist * 4));
-      const busMin = Math.max(8, Math.round(dist * 2.5) + 6);
-      const trainMin = Math.max(10, Math.round(dist * 1.2) + 8);
+      const _est = estimateSkaneTimes(dist);
+      const walkMin = _est.walk;
+      const bikeMin = _est.bike;
+      const busMin = _est.bus;
+      const trainMin = _est.train;
 
       if (document.getElementById('searchInput')) {
         document.getElementById('searchInput').value = to.name.split(',')[0];
@@ -3935,8 +4193,8 @@
         L.polyline([[startLat, startLng], [endLat, endLng]], { color: '#5eb6f0', weight: 4, dashArray: '8 8', opacity: 0.7 }).addTo(routeLayer);
       }
 
-      const wMin = walkInfo ? Math.max(1, Math.round(walkInfo.durationSec / 60)) : walkMin;
-      const bMin = bikeInfo ? Math.max(1, Math.round(bikeInfo.durationSec / 60)) : bikeMin;
+      const wMin = walkInfo ? Math.max(walkMin, Math.round(walkInfo.durationSec / 60)) : walkMin;
+      const bMin = bikeInfo ? Math.max(bikeMin, Math.round(bikeInfo.durationSec / 60)) : bikeMin;
       const wKm = walkInfo ? (walkInfo.distanceM / 1000) : dist;
       const bKm = bikeInfo ? (bikeInfo.distanceM / 1000) : dist;
 
@@ -3961,6 +4219,7 @@
             </div>
             <div class="route-card" onclick="currentMode='bus';searchAndRoute('${to.name.split(',')[0].replace(/'/g,"\\'")}');">
               <div class="route-top"><div class="route-duration">~${busMin} min</div><div class="route-price">~29–39 kr</div></div>
+              <div style="font-size:12px;font-weight:600;color:var(--primary);margin:-4px 0 8px;">dont ~${_est.busWait} min d'attente</div>
               <div class="route-modes"><span class="mode-pill bus"><i class="fas fa-bus"></i> Bus / train</span></div>
               <div class="route-meta"><span>Skånetrafiken (estim.)</span></div>
             </div>
@@ -4041,9 +4300,11 @@
       container.style.display = 'block';
 
       const dist = haversine(userLat, userLng, lat, lng);
-      const walkMin = Math.max(3, Math.round(dist * 12));
-      const bikeMin = Math.max(2, Math.round(dist * 4));
-      const busMin = Math.max(5, Math.round(dist * 3) + 4);
+      const est = estimateSkaneTimes(dist);
+      const walkMin = est.walk;
+      const bikeMin = est.bike;
+      const busMin = est.bus;
+      const trainMin = est.train;
 
       const mode = currentMode || 'all';
       const distLabel = dist < 1 ? Math.round(dist*1000)+' m' : dist.toFixed(1)+' km';
@@ -4052,17 +4313,19 @@
         cards.push(`<div class="route-card" onclick="goToAddress(${lat},${lng},'bike',${bikeMin})">
           <div class="route-top"><div class="route-duration">${bikeMin} min</div><div class="route-price">Gratuit</div></div>
           <div class="route-modes"><span class="mode-pill bike"><i class="fas fa-bicycle"></i> Vélo</span></div>
-          <div class="route-meta"><span>${distLabel}</span></div></div>`);
+          <div class="route-meta"><span>${distLabel} · rythme urbain</span></div></div>`);
       }
       if (mode === 'all' || mode === 'bus') {
         cards.push(`<div class="route-card" onclick="goToAddress(${lat},${lng},'bus',${busMin})">
           <div class="route-top"><div class="route-duration">${busMin} min</div><div class="route-price">25–34 kr</div></div>
+          <div style="font-size:12px;font-weight:600;color:var(--primary);margin:-4px 0 8px;">dont ~${est.busWait} min d'attente</div>
           <div class="route-modes"><span class="mode-pill bus"><i class="fas fa-bus"></i> Bus</span></div>
           <div class="route-meta"><span>${distLabel}</span></div></div>`);
       }
       if (mode === 'all' || mode === 'train') {
-        cards.push(`<div class="route-card" onclick="goToAddress(${lat},${lng},'train',${Math.max(busMin, 12)})">
-          <div class="route-top"><div class="route-duration">${Math.max(busMin, 12)} min</div><div class="route-price">25–34 kr</div></div>
+        cards.push(`<div class="route-card" onclick="goToAddress(${lat},${lng},'train',${trainMin})">
+          <div class="route-top"><div class="route-duration">${trainMin} min</div><div class="route-price">25–34 kr</div></div>
+          <div style="font-size:12px;font-weight:600;color:var(--primary);margin:-4px 0 8px;">dont ~6 min d'attente gare</div>
           <div class="route-modes"><span class="mode-pill train"><i class="fas fa-train"></i> Train</span></div>
           <div class="route-meta"><span>${distLabel}</span></div></div>`);
       }
@@ -4194,15 +4457,48 @@
         return;
       }
 
-      // 4) Itinéraire classique (ville connue / estimation)
+      // 4) Itinéraire classique — ResRobot d'abord, sinon estimation locale
       const container = document.getElementById('routesContainer');
-      container.innerHTML = `<div class="state-message"><div class="spinner"></div><p>Recherche des meilleurs itinéraires…</p></div>`;
+      container.innerHTML = `<div class="state-message"><div class="spinner"></div><p>Recherche ResRobot / Skånetrafiken…</p></div>`;
       expandSheet();
       document.getElementById('tabRoutes')?.click();
 
-      await new Promise(r => setTimeout(r, 550));
+      const destPt = destCoordsFromName(destination);
+      let usedResrobot = false;
+      if (destPt) {
+        const rr = await fetchResrobotRoutes(destPt.lat, destPt.lng);
+        if (rr.ok && rr.routes && rr.routes.length) {
+          currentRoutes = rr.routes;
+          const mode = (currentMode || 'all').toLowerCase();
+          if (mode !== 'all') {
+            const filtered = currentRoutes.filter(r => (r.modes || []).includes(mode));
+            if (filtered.length) currentRoutes = filtered;
+          }
+          usedResrobot = true;
+          showToast('Itinéraires ResRobot · Trafiklab');
+        } else if (rr && rr.code && rr.code !== 'NO_BACKEND') {
+          // Erreur réelle : informer puis fallback
+          showToast(apiErrorMessage(rr));
+          console.warn('[ResRobot]', rr.code, rr.error || rr.message);
+        }
+      }
 
-      currentRoutes = generateRoutes(destination, currentMode);
+      if (!usedResrobot) {
+        await new Promise(r => setTimeout(r, 300));
+        currentRoutes = generateRoutes(destination, currentMode);
+        if (destPt) {
+          // Petite note sous les résultats si fallback
+          setTimeout(() => {
+            const c = document.getElementById('routesContainer');
+            if (!c || c.querySelector('.api-fallback-note')) return;
+            const note = document.createElement('div');
+            note.className = 'api-fallback-note';
+            note.style.cssText = 'font-size:11px;color:var(--text-muted);text-align:center;padding:6px 8px 2px;line-height:1.4;';
+            note.textContent = 'Estimation locale — lance le backend ResRobot pour les horaires réels';
+            c.appendChild(note);
+          }, 50);
+        }
+      }
 
       // Prix SEK + DKK pour trajets transfrontaliers
       const isCph = /copenhague|copenhagen|köpenhamn|kopenhamn|oresund|öresund/i.test(destination);
@@ -4222,6 +4518,12 @@
       }
 
       renderRoutes(currentRoutes);
+      if (typeof usedResrobot !== 'undefined' && usedResrobot) {
+        const note = document.createElement('div');
+        note.style.cssText = 'font-size:11px;color:var(--text-muted);text-align:center;padding:8px 0 4px;';
+        note.textContent = 'data from Trafiklab.se · ResRobot';
+        container.appendChild(note);
+      }
       updateCarbon(destination);
     }
 
