@@ -1119,6 +1119,21 @@
       background: #ece9e4;
     }
 
+  
+    /* ===== Mode sombre : le panneau du bas reste sombre (sinon textes blancs sur fond blanc) ===== */
+    [data-theme="dark"] .bottom-sheet {
+      background: rgba(16, 32, 51, 0.97);
+      color: #ffffff;
+      --text: #ffffff;
+      --text-secondary: #d4e6f5;
+      --text-muted: #9cb8d0;
+      --bg-card: #1a3050;
+      --bg-elevated: #102033;
+      --border: rgba(160, 210, 245, 0.22);
+      --primary: #6ec8ff;
+      --primary-soft: rgba(110, 200, 255, 0.28);
+    }
+    [data-theme="dark"] .sheet-handle { background: rgba(255, 255, 255, 0.28); }
   </style>
   <link rel="stylesheet" href="./vagvis-game.css">
   <script src="./vagvis-game.js" defer></script>
@@ -2722,7 +2737,7 @@
             <div class="route-modes"><span class="mode-pill bus"><i class="fas fa-bus"></i> Bus</span><span class="mode-pill walk"><i class="fas fa-walking"></i> arrêts</span></div>
             <div class="route-meta"><span>Via ${poi.nearestStop || 'arrêt proche'}</span></div></div>`);
       }
-      if (mode === 'all' || mode === 'train') {
+      if (mode === 'train' || (mode === 'all' && poiDist >= 5)) {
         modeCards.push(`<div class="route-card" onclick="goToPoi('train', ${trainMin})">
             <div class="route-top"><div class="route-duration">${trainMin} min</div><div class="route-price">25–34 kr</div></div>
             <div style="font-size:12px;font-weight:600;color:var(--primary);margin:-4px 0 8px;">dont ~6 min d'attente gare</div>
@@ -2807,14 +2822,16 @@
     function estimateSkaneTimes(distKm) {
       const d = Math.max(0.05, distKm || 0.05);
       // Marche ~4,5 km/h en ville → ~13,5 min/km (+ 1 min démarrage)
-      const walk = Math.max(4, Math.round(d * 14 + 1));
+      // (distance à vol d'oiseau x 1,3 pour les détours réels des rues, puis ~4,6 km/h)
+      const walk = Math.max(4, Math.round(d * 16.5 + 1));
       // Vélo urbain ~12–14 km/h avec feux → ~4,5–5 min/km (+ 1 min)
       const bike = Math.max(5, Math.round(d * 5 + 1));
-      // Bus : attente moyenne 6 min + trajet ~16 km/h + 3 min marche aux arrêts
+      // Bus : attente moyenne = la moitié de l'intervalle entre deux bus (~3-6 min en ville)
+      // + trajet ~16 km/h + 3 min de marche aux arrêts
       const busRide = Math.round(d * 3.8);
-      const busWait = d < 1.2 ? 5 : (d < 3 ? 7 : 8);
+      const busWait = d < 1.2 ? 3 : (d < 3 ? 4 : 6);
       const busWalk = 3;
-      const bus = Math.max(10, busWait + busRide + busWalk);
+      const bus = Math.max(8, busWait + busRide + busWalk);
       // Train / Pågatåg : marche gare 5 min + attente 6 + trajet plus rapide
       const train = Math.max(14, 5 + 6 + Math.round(d * 1.6));
       return {
@@ -4322,7 +4339,7 @@
           <div class="route-modes"><span class="mode-pill bus"><i class="fas fa-bus"></i> Bus</span></div>
           <div class="route-meta"><span>${distLabel}</span></div></div>`);
       }
-      if (mode === 'all' || mode === 'train') {
+      if (mode === 'train' || (mode === 'all' && dist >= 5)) {
         cards.push(`<div class="route-card" onclick="goToAddress(${lat},${lng},'train',${trainMin})">
           <div class="route-top"><div class="route-duration">${trainMin} min</div><div class="route-price">25–34 kr</div></div>
           <div style="font-size:12px;font-weight:600;color:var(--primary);margin:-4px 0 8px;">dont ~6 min d'attente gare</div>
