@@ -1,188 +1,179 @@
-// Fonction Netlify : vrais trajets en transports en commun (ResRobot / Trafiklab.se)
-// Appel : /api/trip?from=55.60,13.00&to=55.70,13.19
-// La clé est lue dans la variable secrète RESROBOT_KEY (jamais visible des visiteurs).
+// VāgVis — itinéraires réels (bus, train, marche) via ResRobot / Trafiklab
+// Appel : /api/trip?fromLat=..&fromLng=..&toLat=..&toLng=..
+// La clé se range dans Netlify (variable d'environnement RESROBOT_KEY), jamais dans le code.
 
-const NOMBRE = /^-?\d{1,3}(\.\d+)?$/;
+export const config = { path: '/api/trip' };
 
-function reponse(corps, statut = 200) {
-  return new Response(JSON.stringify(corps), {
-    status: statut,
-    headers: {
-      'Content-Type': 'application/json; charset=utf-8',
-      'Cache-Control': 'public, max-age=30'
+function parseIso(iso) {
+  if (!iso || typeof iso !== 'string') return 0;
+  const m = iso.match(/PT(?:(\d+)H)?(?:(\d+)M)?(?:(\d+)S)?/i);
+  if (!m) return 0;
+  return parseInt(m[1] || '0', 10) * 60 + parseInt(m[2] || '0', 10) + Math.round(parseInt(m[3] || '0', 10) / 60);
+}
+
+function toMs(date, time) {
+  if (!date || !time) return NaN;
+  return new Date(`${date}T${time}`).getTime();
+}
+
+function hhmm(t) {
+  return typeof t === 'string' ? t.slice(0, 5) : '';
+}
+
+function product(leg) {
+  const p = leg.Product;
+  if (Array.isArray(p)) return p[0] || {};
+  return p || {};
+}
+
+function legKind(leg) {
+  const t = String(leg.type || '').toUpperCase();
+  if (t !== 'JNY') return 'walk'; // WALK, TRSF (changement à pied), etc.
+  const p = product(leg);
+  const txt = `${leg.name || ''} ${p.name || ''} ${p.catOutL || ''} ${p.catOut || ''}`.toLowerCase();
+  if (/tåg|tag\b|train|pendel|öresund|oresund|pågatåg|pagatag|jnt/.test(txt)) return 'train';
+  return 'bus';
+}
+
+function legLabel(leg, kind) {
+  const p = product(leg);
+  let name = String(leg.name || p.name || '').trim();
+  name = name.replace(/^.*? - /, '').replace(/^Buss\b/i, 'Bus').trim();
+  if (!name) name = kind === 'train' ? 'Train' : 'Bus';
+  return name.slice(0, 28);
+}
+
+export function mapTrips(data) {
+  const raw = data.Trip || data.trip || [];
+  const list = Array.isArray(raw) ? raw : [raw];
+  return list.slice(0, 6).map((trip, idx) => {
+    const legRaw = (trip.LegList && trip.LegList.Leg) || [];
+    const legs = Array.isArray(legRaw) ? legRaw : [legRaw];
+    let walking = 0;
+    const modes = new Set();
+    const pills = [];
+    const steps = [];
+    const outLegs = [];
+    legs.forEach((leg) => {
+      const kind = legKind(leg);
+      modes.add(kind);
+      const o = leg.Origin || {};
+      const d = leg.Destination || {};
+      let mins = parseIso(leg.duration);
+      if (!mins) {
+        const a = toMs(o.date, o.time), b = toMs(d.date || o.date, d.time);
+        if (Number.isFinite(a) && Number.isFinite(b)) mins = Math.max(1, Math.round((b - a) / 60000));
+      }
+      if (!mins) mins = 1;
+      const label = kind === 'walk' ? `${mins} min` : legLabel(leg, kind);
+      if (kind === 'walk') {
+        walking += mins;
+        if (mins >= 2) pills.push({ type: 'walk', label });
+      } else {
+        pills.push({ type: kind, label });
+      }
+      steps.push({
+        type: kind,
+        instruction: kind === 'walk' ? `Marchez vers ${d.name || "l'arrêt"}` : `${label} → ${d.name || ''}`.trim(),
+        duration: mins, time: hhmm(o.time), arrive: hhmm(d.time), from: o.name || '', to: d.name || ''
+      });
+      outLegs.push({
+        type: kind, label, from: o.name || '', to: d.name || '',
+        dep: hhmm(o.time), arr: hhmm(d.time), direction: leg.direction || '', minutes: mins
+      });
+    });
+    const first = (legs[0] && legs[0].Origin) || {};
+    const last = (legs[legs.length - 1] && legs[legs.length - 1].Destination) || {};
+    let duration = parseIso(trip.duration);
+    if (!duration) {
+      const a = toMs(first.date, first.time), b = toMs(last.date || first.date, last.time);
+      duration = Number.isFinite(a) && Number.isFinite(b) ? Math.max(1, Math.round((b - a) / 60000)) : steps.reduce((s, x) => s + x.duration, 0);
     }
-  });
-}
-
-function lireCoord(texte) {
-  const [a, b] = String(texte || '').split(',').map((s) => s.trim());
-  if (!NOMBRE.test(a || '') || !NOMBRE.test(b || '')) return null;
-  const lat = Number(a), lng = Number(b);
-  if (lat < -90 || lat > 90 || lng < -180 || lng > 180) return null;
-  return { lat, lng };
-}
-
-const liste = (x) => (Array.isArray(x) ? x : x ? [x] : []);
-const hhmm = (t) => String(t || '').slice(0, 5);
-const horodatage = (date, heure) => new Date(`${date}T${String(heure || '00:00:00').slice(0, 8)}`).getTime();
-
-function minutesEntre(d1, t1, d2, t2) {
-  const m = Math.round((horodatage(d2, t2) - horodatage(d1, t1)) / 60000);
-  return Number.isFinite(m) ? Math.max(0, m) : 0;
-}
-
-function dureeIso(iso) {
-  const m = /PT(?:(\d+)H)?(?:(\d+)M)?/.exec(String(iso || ''));
-  return m ? Number(m[1] || 0) * 60 + Number(m[2] || 0) : null;
-}
-
-function raccourcir(texte, max = 14) {
-  const t = String(texte || '').trim();
-  return t.length > max ? t.slice(0, max - 1) + '…' : t;
-}
-
-// Selon les réponses, Product est un objet ou une liste d'objets
-const produit = (leg) => (Array.isArray(leg.Product) ? leg.Product[0] : leg.Product) || {};
-
-function modeDe(leg) {
-  const p = produit(leg);
-  const t = [p.catOutL, p.catOutS, p.name, leg.category].join(' ').toLowerCase();
-  if (/tunnelbana|metro|subway/.test(t)) return 'metro';
-  if (/spårvagn|tram|lokalbana/.test(t)) return 'tram';
-  if (/färja|ferry|båt|boat/.test(t)) return 'ferry';
-  if (/buss|bus/.test(t)) return 'bus';
-  if (/tåg|train|pågatåg/.test(t)) return 'train';
-  return 'other';
-}
-
-function etiquetteDe(leg, mode) {
-  const p = produit(leg);
-  if (mode === 'bus') return `Bus ${p.num || ''}`.trim();
-  if (mode === 'train') {
-    const op = p.operator || '';
-    if (/öresund/i.test(op)) return 'Öresundståg';
-    if (/skånetrafiken/i.test(op)) return 'Pågatåg';
-    return raccourcir(op || p.catOutL || 'Tåg');
-  }
-  return raccourcir(p.catOutL || p.name || 'Transport');
-}
-
-function point(o) {
-  return {
-    name: o.name || '',
-    lat: Number(o.lat),
-    lng: Number(o.lon),
-    time: hhmm(o.time)
-  };
-}
-
-function normaliserLeg(leg) {
-  const o = leg.Origin || {};
-  const d = leg.Destination || {};
-  const from = point(o);
-  const to = point(d);
-  const minutes = minutesEntre(o.date, o.time, d.date, d.time);
-
-  if (leg.type === 'JNY') {
-    const mode = modeDe(leg);
-    const arrets = liste(leg.Stops && leg.Stops.Stop);
-    const chemin = arrets
-      .map((s) => [Number(s.lat), Number(s.lon)])
-      .filter((c) => Number.isFinite(c[0]) && Number.isFinite(c[1]));
+    const transit = outLegs.filter((l) => l.type !== 'walk');
+    const hasTransit = transit.length > 0;
     return {
-      kind: 'transit',
-      mode,
-      label: etiquetteDe(leg, mode),
-      direction: leg.direction || '',
-      from,
-      to,
-      minutes,
-      stops: Math.max(0, arrets.length - 1),
-      path: chemin.length > 1 ? chemin : [[from.lat, from.lng], [to.lat, to.lng]]
+      id: idx + 1,
+      source: 'resrobot',
+      modes: [...modes],
+      duration,
+      price: hasTransit ? '25–34 kr' : 'Gratuit',
+      walking,
+      transfers: Math.max(0, transit.length - 1),
+      pills: pills.length ? pills : [{ type: 'walk', label: 'Marche' }],
+      steps,
+      legs: outLegs,
+      departure: hhmm(first.time),
+      arrival: hhmm(last.time),
+      firstTransit: hasTransit ? { from: transit[0].from, dep: transit[0].dep, label: transit[0].label, direction: transit[0].direction } : null
     };
-  }
-
-  // WALK (marche) ou TRSF (correspondance à pied)
-  return {
-    kind: 'walk',
-    transfer: leg.type === 'TRSF',
-    from,
-    to,
-    minutes,
-    distM: Number(leg.dist) || 0,
-    path: [[from.lat, from.lng], [to.lat, to.lng]]
-  };
-}
-
-function normaliserTrip(trip) {
-  const legs = liste(trip.LegList && trip.LegList.Leg).map(normaliserLeg);
-  if (!legs.length) return null;
-  const premier = legs[0];
-  const dernier = legs[legs.length - 1];
-  const transports = legs.filter((l) => l.kind === 'transit');
-  const duree =
-    dureeIso(trip.duration) ??
-    legs.reduce((s, l) => s + (l.minutes || 0), 0);
-  return {
-    dep: premier.from.time,
-    arr: dernier.to.time,
-    durationMin: duree,
-    transfers: Math.max(0, transports.length - 1),
-    walkM: legs.filter((l) => l.kind === 'walk').reduce((s, l) => s + (l.distM || 0), 0),
-    legs
-  };
+  });
 }
 
 export default async (req) => {
-  const cle = Netlify.env.get('RESROBOT_KEY');
-  if (!cle) {
-    return reponse({ error: 'Variable RESROBOT_KEY introuvable', trips: [] }, 500);
+  const json = (obj, status = 200) =>
+    new Response(JSON.stringify(obj), {
+      status,
+      headers: { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' }
+    });
+
+  // La clé peut avoir été rangée sous l'un de ces noms dans Netlify (variables d'environnement)
+  const KEY_NAMES = ['RESROBOT_KEY', 'RESROBOT_API_KEY', 'TRAFIKLAB_RESROBOT_KEY', 'TRAFIKLAB_KEY'];
+  let key = '';
+  for (const name of KEY_NAMES) {
+    try { key = (globalThis.Netlify && Netlify.env && Netlify.env.get(name)) || ''; } catch (_) {}
+    if (!key && typeof process !== 'undefined' && process.env) key = process.env[name] || '';
+    if (key) break;
+  }
+  if (!key) {
+    return json({ ok: false, code: 'NO_KEY', error: 'Clé ResRobot absente', message: 'Variable RESROBOT_KEY non configurée sur Netlify (ou nom différent)', routes: [] }, 503);
   }
 
-  const url = new URL(req.url);
-  const depart = lireCoord(url.searchParams.get('from'));
-  const arrivee = lireCoord(url.searchParams.get('to'));
-  if (!depart || !arrivee) {
-    return reponse({ error: 'Coordonnées invalides (from=lat,lng&to=lat,lng)', trips: [] }, 400);
+  const sp = new URL(req.url).searchParams;
+  const [fromLat, fromLng, toLat, toLng] = ['fromLat', 'fromLng', 'toLat', 'toLng'].map((k) => Number(sp.get(k)));
+  if (![fromLat, fromLng, toLat, toLng].every(Number.isFinite)) {
+    return json({ ok: false, code: 'BAD_COORDS', error: 'Coordonnées invalides', message: 'fromLat, fromLng, toLat, toLng requis', routes: [] }, 400);
   }
 
-  const params = new URLSearchParams({
+  const q = new URLSearchParams({
     format: 'json',
-    originCoordLat: String(depart.lat),
-    originCoordLong: String(depart.lng),
-    destCoordLat: String(arrivee.lat),
-    destCoordLong: String(arrivee.lng),
-    numF: '5',
-    passlist: '1',
-    accessId: cle
+    accessId: key,
+    originCoordLat: String(fromLat),
+    originCoordLong: String(fromLng),
+    destCoordLat: String(toLat),
+    destCoordLong: String(toLng),
+    numF: '5'
   });
-  const date = url.searchParams.get('date');
-  const heure = url.searchParams.get('time');
-  if (date && /^\d{4}-\d{2}-\d{2}$/.test(date)) params.set('date', date);
-  if (heure && /^\d{2}:\d{2}$/.test(heure)) params.set('time', heure);
-
-  let res;
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), 9000);
   try {
-    res = await fetch(`https://api.resrobot.se/v2.1/trip?${params.toString()}`);
+    const res = await fetch(`https://api.resrobot.se/v2.1/trip?${q.toString()}`, {
+      headers: { Accept: 'application/json', 'User-Agent': 'VagVis/1.2' },
+      signal: ctrl.signal
+    });
+    clearTimeout(timer);
+    if (res.status === 401 || res.status === 403) {
+      return json({ ok: false, code: 'AUTH', error: 'Clé refusée', message: 'Clé ResRobot invalide ou non autorisée', routes: [] }, 502);
+    }
+    if (res.status === 429) {
+      return json({ ok: false, code: 'RATE_LIMIT', error: 'Quota dépassé', message: 'Quota Trafiklab dépassé, réessaie plus tard', routes: [] }, 429);
+    }
+    if (!res.ok) {
+      return json({ ok: false, code: 'UPSTREAM', error: `HTTP ${res.status}`, message: 'ResRobot est indisponible', routes: [] }, 502);
+    }
+    const data = await res.json();
+    if (data && data.errorCode) {
+      return json({ ok: false, code: 'RESROBOT_' + data.errorCode, error: String(data.errorText || data.errorCode).split(key).join('***'), message: 'ResRobot a refusé la requête', routes: [] }, 502);
+    }
+    const routes = mapTrips(data);
+    if (!routes.length) {
+      return json({ ok: false, code: 'NO_TRIPS', error: 'Aucun trajet', message: 'Aucun itinéraire trouvé', routes: [] }, 404);
+    }
+    return json({ ok: true, source: 'resrobot', count: routes.length, routes, attribution: 'Données : Trafiklab.se (ResRobot)' });
   } catch (e) {
-    return reponse({ error: 'ResRobot injoignable', trips: [] }, 502);
+    clearTimeout(timer);
+    const aborted = e && e.name === 'AbortError';
+    // Sécurité : on n'affiche jamais la clé, même si un message d'erreur la contenait
+    const safeMsg = String((e && e.message) || e).split(key).join('***');
+    return json({ ok: false, code: aborted ? 'TIMEOUT' : 'NETWORK', error: safeMsg, message: 'ResRobot ne répond pas', routes: [] }, 504);
   }
-  if (!res.ok) {
-    return reponse({ error: `ResRobot a répondu ${res.status}`, trips: [] }, 502);
-  }
-
-  const data = await res.json();
-  if (data.errorCode) {
-    // ex. SVC_NO_RESULT : aucun trajet trouvé (ce n'est pas une panne)
-    return reponse({ error: data.errorText || data.errorCode, code: data.errorCode, trips: [] });
-  }
-
-  const trips = liste(data.Trip).map(normaliserTrip).filter(Boolean);
-  return reponse({
-    source: 'resrobot',
-    attribution: 'Données : Trafiklab.se (ResRobot, CC BY 4.0)',
-    trips
-  });
 };
-
-export const config = { path: '/api/trip' };
