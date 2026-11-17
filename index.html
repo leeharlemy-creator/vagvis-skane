@@ -2130,6 +2130,23 @@
       { name: 'Höganäs', lat: 56.1997, lng: 12.5580, tag: 'Nord-ouest' }
     ];
 
+    // Les 21 autres communes de Skåne (avec les 12 ci-dessus : les 33 communes de la région).
+    // Pas de coordonnées écrites à la main : la position est cherchée sur la carte au moment du clic.
+    const SKANE_MORE_TOWNS = [
+      'Bjuv', 'Bromölla', 'Burlöv', 'Båstad', 'Hörby', 'Höör', 'Klippan', 'Kävlinge', 'Lomma', 'Osby',
+      'Perstorp', 'Sjöbo', 'Skurup', 'Staffanstorp', 'Svalöv', 'Svedala', 'Tomelilla', 'Vellinge',
+      'Åstorp', 'Örkelljunga', 'Östra Göinge'
+    ];
+    async function openTownByName(name) {
+      regionMode = false;
+      showToast('Recherche de ' + name + '…');
+      const results = await geocodeAddress(name + ', Skåne');
+      if (!results.length) { showToast('Lieu introuvable : ' + name); return; }
+      const t = results.find(x => /^(city|town|village|administrative|suburb|hamlet)$/.test(x.label)) || results[0];
+      if (regionLayer && map.hasLayer(regionLayer)) map.removeLayer(regionLayer);
+      openAddress(name, t.lat, t.lng);
+    }
+
     function initRegionMap() {
       if (!regionLayer) return;
       regionLayer.clearLayers();
@@ -2178,6 +2195,12 @@
                 <div class="quick-chip" style="cursor:pointer;" onclick="regionMode=false;map.setView([${c.lat},${c.lng}],13);searchAndRoute('${c.name}')">
                   ${c.name}
                 </div>
+              `).join('')}
+            </div>
+            <div style="font-size:13px;color:var(--text-muted);margin:16px 0 8px;">Autres communes de Skåne</div>
+            <div style="display:flex;flex-wrap:wrap;gap:8px;">
+              ${SKANE_MORE_TOWNS.map(n => `
+                <div class="quick-chip" style="cursor:pointer;" onclick="openTownByName('${n}')">${n}</div>
               `).join('')}
             </div>
             <p style="font-size:12px;color:var(--text-muted);margin-top:14px;line-height:1.4;">
@@ -2773,6 +2796,8 @@
       L.circleMarker([poi.lat, poi.lng], {
         radius: 10, color: '#5eb6f0', fillColor: '#5eb6f0', fillOpacity: 0.3, weight: 2
       }).addTo(routeLayer);
+      // Vrais horaires (numéro de ligne, heures) si le service ResRobot est configuré
+      if (container) loadRealTransitForAddress(poi.lat, poi.lng, mode, container);
     }
 
     // ========== CALCUL D'ITINÉRAIRE (OSRM public) ==========
@@ -2863,7 +2888,7 @@
     /** ResRobot via backend /api/trip (cle RESROBOT_KEY cote serveur) */
     async function fetchResrobotRoutes(toLat, toLng) {
       const base = (CONFIG.apiBase || '').replace(/\/$/, '');
-      if (!base && !(typeof location !== 'undefined' && location.port === '3001')) {
+      if (!base && !(typeof location !== 'undefined' && (location.port === '3001' || /netlify\.app$|vercel\.app$/i.test(location.hostname)))) {
         // Pas de backend configuré (ex. Netlify seul)
         return { ok: false, code: 'NO_BACKEND', error: 'Pas de backend', message: 'Backend ResRobot non configuré', routes: [] };
       }
@@ -4028,15 +4053,32 @@
       dropdown.style.display = 'block';
     }
 
+    // Noms de clubs / lieux que la carte ne connaît pas sous ce nom → on cherche leur vrai emplacement
+    const PLACE_ALIASES = [
+      { re: /\b(bk\s*)?olympic\b/i, queries: ['Lindängens IP, Malmö', 'Tenorgatan, Malmö'], label: 'BK Olympic · Lindängens IP' }
+    ];
+    async function nominatimSearch(query) {
+      const url = `https://nominatim.openstreetmap.org/search?format=json&limit=5&countrycodes=se&viewbox=12.5,55.3,14.6,56.4&bounded=1&q=${encodeURIComponent(query)}`;
+      const res = await fetch(url, {
+        headers: { 'Accept': 'application/json', 'Accept-Language': 'fr,sv,en' }
+      });
+      if (!res.ok) return [];
+      return (await res.json()) || [];
+    }
     async function geocodeAddress(query) {
       // Nominatim OpenStreetMap — gratuit, limité à Skåne / Suède
-      const url = `https://nominatim.openstreetmap.org/search?format=json&limit=5&countrycodes=se&viewbox=12.5,55.3,14.6,56.4&bounded=1&q=${encodeURIComponent(query)}`;
       try {
-        const res = await fetch(url, {
-          headers: { 'Accept': 'application/json', 'Accept-Language': 'fr,sv,en' }
-        });
-        if (!res.ok) return [];
-        const data = await res.json();
+        const alias = PLACE_ALIASES.find(a => a.re.test(query));
+        let data = [];
+        if (alias) {
+          for (const q of alias.queries) {
+            data = await nominatimSearch(q);
+            if (data.length) break;
+          }
+          if (data.length) data[0].display_name = alias.label + ', ' + data[0].display_name;
+        } else {
+          data = await nominatimSearch(query);
+        }
         return (data || []).map(item => ({
           name: item.display_name.split(',').slice(0, 3).join(',').trim(),
           type: 'address',
@@ -4335,14 +4377,14 @@
       if (mode === 'all' || mode === 'bus') {
         cards.push(`<div class="route-card" onclick="goToAddress(${lat},${lng},'bus',${busMin})">
           <div class="route-top"><div class="route-duration">${busMin} min</div><div class="route-price">25–34 kr</div></div>
-          <div style="font-size:12px;font-weight:600;color:var(--primary);margin:-4px 0 8px;">dont ~${est.busWait} min d'attente</div>
+          <div style="font-size:12px;font-weight:600;color:var(--primary);margin:-4px 0 8px;">estimation · dont ~${est.busWait} min d'attente</div>
           <div class="route-modes"><span class="mode-pill bus"><i class="fas fa-bus"></i> Bus</span></div>
           <div class="route-meta"><span>${distLabel}</span></div></div>`);
       }
       if (mode === 'train' || (mode === 'all' && dist >= 5)) {
         cards.push(`<div class="route-card" onclick="goToAddress(${lat},${lng},'train',${trainMin})">
           <div class="route-top"><div class="route-duration">${trainMin} min</div><div class="route-price">25–34 kr</div></div>
-          <div style="font-size:12px;font-weight:600;color:var(--primary);margin:-4px 0 8px;">dont ~6 min d'attente gare</div>
+          <div style="font-size:12px;font-weight:600;color:var(--primary);margin:-4px 0 8px;">estimation · dont ~6 min d'attente gare</div>
           <div class="route-modes"><span class="mode-pill train"><i class="fas fa-train"></i> Train</span></div>
           <div class="route-meta"><span>${distLabel}</span></div></div>`);
       }
@@ -4358,6 +4400,47 @@
           <div style="font-size:13px;font-weight:600;color:var(--text-muted);margin-bottom:10px;text-transform:uppercase;letter-spacing:0.4px;">Y aller — ${mode === 'all' ? 'tous modes' : mode}</div>
           ${cards.join('') || '<div class="state-message"><p>Aucun itinéraire pour ce mode</p></div>'}
         </div>`;
+      // Vrais horaires (numéro de ligne, heures) si le service ResRobot est configuré
+      loadRealTransitForAddress(lat, lng, mode, container);
+    }
+
+    let addressTripToken = 0;
+    function escHtml(s) {
+      return String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+    }
+    async function loadRealTransitForAddress(lat, lng, mode, container) {
+      if (mode === 'bike' || mode === 'walk') return;
+      const token = ++addressTripToken;
+      let rr;
+      try { rr = await fetchResrobotRoutes(lat, lng); } catch (_) { return; }
+      if (token !== addressTripToken || !rr || !rr.ok || !rr.routes || !rr.routes.length) return;
+      const wrap = container.firstElementChild;
+      if (!wrap) return;
+      const real = rr.routes.filter(r => (r.modes || []).some(m => m !== 'walk')).slice(0, 3);
+      if (!real.length) return;
+      const html = real.map(r => {
+        const pills = (r.pills || []).map(p => {
+          const icon = p.type === 'train' ? 'fa-train' : (p.type === 'walk' ? 'fa-walking' : 'fa-bus');
+          return `<span class="mode-pill ${p.type}"><i class="fas ${icon}"></i> ${escHtml(p.label)}</span>`;
+        }).join(' ');
+        const ft = r.firstTransit;
+        const when = (r.departure && r.arrival) ? `${escHtml(r.departure)} → ${escHtml(r.arrival)}` : '';
+        const from = (ft && ft.dep) ? `${escHtml(ft.label)} · départ ${escHtml(ft.dep)} de ${escHtml(ft.from)}` : '';
+        const dur = Number(r.duration) || 0;
+        return `<div class="route-card" onclick="goToAddress(${lat},${lng},'bus',${dur})">
+          <div class="route-top"><div class="route-duration">${dur} min</div><div class="route-price">${escHtml(r.price || '')}</div></div>
+          <div style="font-size:12px;font-weight:600;color:var(--primary);margin:-4px 0 8px;">${when}${r.transfers ? ' · ' + r.transfers + ' corresp.' : ''}</div>
+          <div class="route-modes">${pills}</div>
+          <div class="route-meta"><span>${from}</span></div></div>`;
+      }).join('');
+      const estimated = Array.from(wrap.querySelectorAll('.route-card')).filter(c => /'(bus|train)'/.test(c.getAttribute('onclick') || ''));
+      if (estimated.length) {
+        estimated[0].insertAdjacentHTML('beforebegin', html);
+        estimated.forEach(e => e.remove());
+      } else {
+        wrap.insertAdjacentHTML('beforeend', html);
+      }
+      wrap.insertAdjacentHTML('beforeend', '<div style="font-size:11px;color:var(--text-muted);text-align:center;padding:8px 0 4px;">Horaires réels · Trafiklab ResRobot</div>');
     }
 
     async function goToAddress(lat, lng, mode, minutes) {
@@ -4493,7 +4576,7 @@
           }
           usedResrobot = true;
           showToast('Itinéraires ResRobot · Trafiklab');
-        } else if (rr && rr.code && rr.code !== 'NO_BACKEND') {
+        } else if (rr && rr.code && rr.code !== 'NO_BACKEND' && rr.code !== 'NO_KEY') {
           // Erreur réelle : informer puis fallback
           showToast(apiErrorMessage(rr));
           console.warn('[ResRobot]', rr.code, rr.error || rr.message);
@@ -4511,7 +4594,7 @@
             const note = document.createElement('div');
             note.className = 'api-fallback-note';
             note.style.cssText = 'font-size:11px;color:var(--text-muted);text-align:center;padding:6px 8px 2px;line-height:1.4;';
-            note.textContent = 'Estimation locale — lance le backend ResRobot pour les horaires réels';
+            note.textContent = 'Estimation locale (horaires réels momentanément indisponibles)';
             c.appendChild(note);
           }, 50);
         }

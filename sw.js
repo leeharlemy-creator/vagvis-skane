@@ -2,7 +2,7 @@
 // - /api/* et /.netlify/* : toujours réseau (horaires toujours frais)
 // - pages : réseau d'abord, cache en secours (hors-ligne)
 // - images / manifest : cache d'abord
-const CACHE = 'vagvis-v2';
+const CACHE = 'vagvis-v3';
 const ASSETS = [
   './',
   './index.html',
