@@ -16,7 +16,7 @@ const TOWNS = [
   { query: 'Kristianstad C', label: 'Kristianstad', lat: 56.0294, lng: 14.1567 },
   { query: 'Hässleholm C', label: 'Hässleholm', lat: 56.1591, lng: 13.7664 },
   { query: 'Ystad station', label: 'Ystad', lat: 55.4297, lng: 13.8204 },
-  { query: 'Trelleborg station', label: 'Trelleborg', lat: 55.3750, lng: 13.1570 },
+  { query: 'Trelleborg C', label: 'Trelleborg', lat: 55.3750, lng: 13.1570 },
   { query: 'Landskrona station', label: 'Landskrona', lat: 55.8708, lng: 12.8300 },
   { query: 'Eslöv station', label: 'Eslöv', lat: 55.8393, lng: 13.3039 },
   { query: 'Ängelholm station', label: 'Ängelholm', lat: 56.2428, lng: 12.8622 }
@@ -51,40 +51,70 @@ function typeSite(t) {
 
 const cleAlerte = (a) => `${a.title || ''}|${a.text || ''}`.slice(0, 300);
 
-// Cherche un arrêt par son nom avec l'API de recherche d'arrêts de Trafiklab
+// Résultats de la recherche d'arrêts de Trafiklab : { stop_groups: [{ id, name, area_type, average_daily_stop_times, transport_modes, stops: [{ lat, lon }] }] }
 function extraireResultats(data) {
   if (!data || typeof data !== 'object') return [];
   const groupes = data.stop_groups || data.stopGroups || data.stops || data.results || data.stop_locations || [];
-  return liste(groupes).map((g) => ({
-    id: g.id || g.stop_group_id || g.stop_id || g.stopId || g.extId || null,
-    name: g.name || g.stop_name || g.stopName || '',
-    brut: g
-  })).filter((g) => g.id);
+  return liste(groupes).map((g) => {
+    const p = liste(g.stops)[0] || g;
+    const lat = Number(p.lat !== undefined ? p.lat : p.latitude);
+    const lon = Number(p.lon !== undefined ? p.lon : (p.lng !== undefined ? p.lng : p.longitude));
+    return {
+      id: g.id || g.stop_group_id || g.stop_id || g.stopId || g.extId || null,
+      name: g.name || g.stop_name || g.stopName || '',
+      lat: Number.isFinite(lat) ? lat : null,
+      lon: Number.isFinite(lon) ? lon : null,
+      modes: liste(g.transport_modes),
+      trafic: Number(g.average_daily_stop_times) || 0
+    };
+  }).filter((g) => g.id);
+}
+
+// Skåne (avec Copenhague) : on ne garde que les arrêts situés dans cette zone
+function dansSkane(r) {
+  return r.lat !== null && r.lon !== null && r.lat >= 55.3 && r.lat <= 56.55 && r.lon >= 12.35 && r.lon <= 14.65;
 }
 
 function meilleurResultat(resultats, requete) {
   const q = norm(requete);
-  return (
-    resultats.find((r) => norm(r.name) === q) ||
-    resultats.find((r) => norm(r.name).startsWith(norm(requete.split(' ')[0]))) ||
-    resultats[0] ||
-    null
-  );
+  const premierMot = norm(requete.split(' ')[0]);
+  const avecPosition = resultats.filter((r) => r.lat !== null && r.lon !== null);
+  const candidats = avecPosition.length ? avecPosition.filter(dansSkane) : resultats;
+  if (!candidats.length) return null;
+  const gare = /\b(c|station|centralstation|central)\b/.test(q);
+  let meilleur = null, scoreMax = -1;
+  for (const r of candidats) {
+    const n = norm(r.name);
+    let score = 0;
+    if (n === q) score += 100;
+    else if (n.startsWith(q)) score += 60;
+    else if (n.startsWith(premierMot)) score += 40;
+    else if (n.includes(q)) score += 20;
+    else if (n.includes(premierMot)) score += 10;
+    if (gare && r.modes.includes('TRAIN')) score += 15;
+    score += Math.log10(1 + r.trafic);
+    if (score > scoreMax) { scoreMax = score; meilleur = r; }
+  }
+  return scoreMax >= 10 ? meilleur : null;
 }
 
 async function trouverId(town, cleApi, diag) {
   if (town.id) return town.id;
   if (idCache.has(town.query)) return idCache.get(town.query);
-  const url = `${API}/stops/name/${encodeURIComponent(town.query)}?key=${encodeURIComponent(cleApi)}`;
-  const res = await fetch(url);
-  if (!res.ok) { diag.push({ town: town.label, etape: 'recherche', statut: res.status }); return null; }
-  const data = await res.json();
-  const resultats = extraireResultats(data);
-  if (diag.length < 2) diag.push({ town: town.label, etape: 'recherche', champs: Object.keys(data || {}), apercu: JSON.stringify(data).slice(0, 700) });
-  const best = meilleurResultat(resultats, town.query);
-  if (!best) { diag.push({ town: town.label, etape: 'recherche', resultat: 'aucun arrêt trouvé' }); return null; }
-  idCache.set(town.query, best.id);
-  return best.id;
+  const essais = [...new Set([town.query, town.label])];
+  for (const nom of essais) {
+    const url = `${API}/stops/name/${encodeURIComponent(nom)}?key=${encodeURIComponent(cleApi)}`;
+    const res = await fetch(url);
+    if (!res.ok) { diag.push({ town: town.label, etape: 'recherche', nom, statut: res.status }); continue; }
+    const data = await res.json();
+    const best = meilleurResultat(extraireResultats(data), nom);
+    if (best) {
+      idCache.set(town.query, best.id);
+      return best.id;
+    }
+    diag.push({ town: town.label, etape: 'recherche', nom, resultat: 'aucun arrêt trouvé' });
+  }
+  return null;
 }
 
 async function alertesDeLaVille(town, cleApi, diag) {
@@ -128,7 +158,7 @@ async function construire(cleApi, diag) {
       places: [...lv.map((t) => t.label), 'Skåne'],
       lat: premiere.lat, lng: premiere.lng, radiusKm: lv.length > 1 ? 6 : 4,
       title: a.title || 'Alerte Skånetrafiken',
-      body: (a.text || '') + (listeLignes.length ? ` (lignes : ${listeLignes.join(', ')})` : ''),
+      body: String(a.text || '').trim() + (listeLignes.length ? ` (lignes : ${listeLignes.join(', ')})` : ''),
       advice: 'Détails sur skanetrafiken.se',
       until: 'Temps réel'
     };
