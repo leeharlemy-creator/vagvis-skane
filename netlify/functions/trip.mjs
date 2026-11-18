@@ -16,6 +16,12 @@ function toMs(date, time) {
   return new Date(`${date}T${time}`).getTime();
 }
 
+// Si le « nom » du lieu n'est que des coordonnées (ex. 55.6095, 13.0007), on met un mot lisible
+function nomLieu(n, defaut) {
+  const t = String(n || '').trim();
+  return /^-?\d+(\.\d+)?\s*,\s*-?\d+(\.\d+)?$/.test(t) ? defaut : t;
+}
+
 function hhmm(t) {
   return typeof t === 'string' ? t.slice(0, 5) : '';
 }
@@ -39,6 +45,7 @@ function legLabel(leg, kind) {
   const p = product(leg);
   let name = String(leg.name || p.name || '').trim();
   name = name.replace(/^.*? - /, '').replace(/^Buss\b/i, 'Bus').trim();
+  name = name.replace(/^(Länstrafik|Regional)\s+tåg\b/i, 'Tåg').replace(/^Länstrafik\s+/i, '').trim();
   if (!name) name = kind === 'train' ? 'Train' : 'Bus';
   return name.slice(0, 28);
 }
@@ -57,8 +64,10 @@ export function mapTrips(data) {
     legs.forEach((leg) => {
       const kind = legKind(leg);
       modes.add(kind);
-      const o = leg.Origin || {};
-      const d = leg.Destination || {};
+      const o = { ...(leg.Origin || {}) };
+      const d = { ...(leg.Destination || {}) };
+      o.name = nomLieu(o.name, 'Départ');
+      d.name = nomLieu(d.name, 'Destination');
       let mins = parseIso(leg.duration);
       if (!mins) {
         const a = toMs(o.date, o.time), b = toMs(d.date || o.date, d.time);
