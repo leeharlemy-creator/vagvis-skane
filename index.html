@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0, user-scalable=yes, viewport-fit=cover">
   <title>VāgVis – Navigation Skåne</title>
-  <meta name="description" content="Navigation multimodale pour Skåne — trains, bus, vélo, marche. Malmö, Lund, Trelleborg.">
+  <meta name="description" content="VāgVis — navigation multimodale pour toute la Skåne. Base : Malmö. Trains, bus, vélo, marche.">
   <meta name="theme-color" content="#5BADE8">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -432,6 +432,41 @@
     }
     .carbon-value span { font-size: 12px; font-weight: 500; color: var(--text-secondary); }
     .carbon-sub { font-size: 11px; color: var(--text-muted); margin-top: 2px; }
+
+    .weather-widget {
+      position: absolute; top: 215px; right: 16px; left: auto; z-index: 900;
+      background: var(--bg-glass);
+      backdrop-filter: blur(20px);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      padding: 10px 12px;
+      min-width: 120px;
+      max-width: 150px;
+      box-shadow: var(--shadow);
+      cursor: pointer;
+      transition: transform 0.15s;
+    }
+    .weather-widget:active { transform: scale(0.98); }
+    .weather-main {
+      display: flex; align-items: center; gap: 8px;
+    }
+    .weather-icon { font-size: 28px; line-height: 1; }
+    .weather-temp {
+      font-size: 22px; font-weight: 800; color: var(--text);
+      font-variant-numeric: tabular-nums;
+    }
+    .weather-desc {
+      font-size: 11px; color: var(--text-secondary); font-weight: 600;
+      margin-top: 4px; line-height: 1.3;
+    }
+    .weather-meta {
+      font-size: 10px; color: var(--text-muted); margin-top: 3px;
+    }
+    @media (max-width: 400px) {
+      .weather-widget { top: 200px; min-width: 100px; padding: 8px 10px; }
+      .weather-icon { font-size: 22px; }
+      .weather-temp { font-size: 18px; }
+    }
 
     .locate-btn {
       position: absolute; bottom: 340px; right: 16px; z-index: 900;
@@ -972,7 +1007,8 @@
     @media (max-width: 400px) {
       .brand-region { display: none; }
       .top-toolbar { max-width: 62vw; }
-      #view3dToggle, #trafficToggle { display: none; }
+      #view3dToggle { display: none; }
+      /* trafic toujours accessible */
       .carbon-widget { display: none; }
     }
 
@@ -1115,8 +1151,26 @@
     :root .nav-cursor {
       filter: drop-shadow(0 2px 6px rgba(59,158,224,0.45));
     }
-    [data-theme="ios"] #map {
+    [data-theme="ios"] #map,
+    [data-theme="light"] #map,
+    :root #map {
       background: #ece9e4;
+    }
+    [data-theme="dark"] #map {
+      background: #1a1a2e;
+    }
+    /* Labels carte un peu plus doux */
+    .leaflet-container {
+      font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Segoe UI', system-ui, sans-serif;
+    }
+
+
+    /* Carte nette et lisible */
+    .leaflet-tile-pane {
+      image-rendering: auto;
+    }
+    .leaflet-container {
+      background: #c5e3f5;
     }
 
   
@@ -1213,7 +1267,7 @@
     <div class="search-bar" style="position:relative;flex-direction:column;align-items:stretch;gap:8px;padding:12px 14px;">
       <div style="display:flex;align-items:center;gap:10px;">
         <i class="fas fa-search" style="color:var(--text-muted);"></i>
-        <input type="text" id="searchInput" placeholder="Où allez-vous ?" autocomplete="off" data-i18n-placeholder="search" inputmode="search" enterkeyhint="search" style="flex:1;background:transparent;border:none;outline:none;color:var(--text);font-size:16px;font-weight:500;">
+        <input type="text" id="searchInput" placeholder="Adresse ou lieu en Skåne…" autocomplete="off" data-i18n-placeholder="search" inputmode="search" enterkeyhint="search" style="flex:1;background:transparent;border:none;outline:none;color:var(--text);font-size:16px;font-weight:500;">
         <button type="button" id="dirModeBtn" title="Itinéraire A → B" onclick="toggleDirectionsMode()" style="flex-shrink:0;background:var(--bg-card);border:1px solid var(--border);color:var(--text-secondary);font-size:11px;font-weight:700;padding:6px 10px;border-radius:10px;cursor:pointer;">A→B</button>
       </div>
       <div id="directionsPanel" style="display:none;flex-direction:column;gap:8px;padding-top:4px;border-top:1px solid var(--border);">
@@ -1274,6 +1328,15 @@
     <div class="carbon-label" data-i18n="carbonLabel">CO₂ économisé aujourd'hui</div>
     <div class="carbon-value"><span id="carbonValue">1.8</span> <span>kg</span></div>
     <div class="carbon-sub" data-i18n="carbonSub">vs voiture en Skåne</div>
+  </div>
+
+  <div id="weatherWidget" class="weather-widget" title="Météo — appuyer pour la prévision horaire" onclick="refreshWeather(true)">
+    <div class="weather-main">
+      <span class="weather-icon" id="weatherIcon">🌡️</span>
+      <span class="weather-temp" id="weatherTemp">--°</span>
+    </div>
+    <div class="weather-desc" id="weatherDesc">Météo…</div>
+    <div class="weather-meta" id="weatherMeta">Open-Meteo</div>
   </div>
 
   <!-- Coordonnées GPS -->
@@ -1338,14 +1401,19 @@
     </div>
 
     <div class="quick-dests" id="quickDests">
-      <div class="quick-chip" data-dest="Trelleborg">Trelleborg</div>
-      <div class="quick-chip" data-dest="Lund">Lund</div>
-      <div class="quick-chip" data-dest="Helsingborg">Helsingborg</div>
+      <div class="quick-chip" data-dest="Malmö C">Malmö C</div>
       <div class="quick-chip" data-dest="Triangeln">Triangeln</div>
       <div class="quick-chip" data-dest="Hyllie">Hyllie</div>
       <div class="quick-chip" data-dest="Södervärn">Södervärn</div>
+      <div class="quick-chip" data-dest="Lindängen">Lindängen</div>
+      <div class="quick-chip" data-dest="Lund">Lund</div>
+      <div class="quick-chip" data-dest="Trelleborg">Trelleborg</div>
+      <div class="quick-chip" data-dest="Helsingborg">Helsingborg</div>
       <div class="quick-chip" data-dest="Ystad">Ystad</div>
-      <div class="quick-chip" data-dest="Malmö C">Malmö C</div>
+      <div class="quick-chip" data-dest="Kristianstad">Kristianstad</div>
+      <div class="quick-chip" data-dest="Landskrona">Landskrona</div>
+      <div class="quick-chip" data-dest="Eslöv">Eslöv</div>
+      <div class="quick-chip" data-dest="Hässleholm">Hässleholm</div>
       <div class="quick-chip" data-dest="Copenhague">Copenhague</div>
     </div>
 
@@ -1391,7 +1459,7 @@
     <div class="detail-view sheet-scroll" id="detailView" style="display:none;padding:0 16px 24px;"></div>
 
     <div style="padding: 8px 16px 16px; text-align: center; font-size: 11px; color: var(--text-muted); opacity: 0.7;">
-      VāgVis • Malmö / Skåne • OSM · OSRM · Nominatim
+      VāgVis • Malmö / Skåne • OSM · Photon · Open-Meteo · OSRM
     </div>
   </div>
 
@@ -1425,12 +1493,15 @@
       mapboxStyleDark: 'mapbox/dark-v11',
       mapboxStyleSatellite: 'mapbox/satellite-streets-v12',
 
-      defaultCenter: [55.6050, 13.0038], // Malmö
+      // PROJET : toute la région Skåne · BASE (projet mère) : Malmö
+      defaultCenter: [55.6050, 13.0038], // Malmö — point de départ par défaut
       defaultZoom: 12,
-      // Emprise approximative de la région Skåne
+      // Emprise régionale Skåne (sud → nord, ouest → est)
       skaneBounds: [[55.30, 12.70], [56.35, 14.55]],
       regionCenter: [55.75, 13.50],
       regionZoom: 9,
+      homeCity: 'Malmö',
+      regionName: 'Skåne',
 
       /*
        * ========== GTFS SKÅNETRAFIKEN (Trafiklab) ==========
@@ -1447,7 +1518,8 @@
        * Note : le ZIP GTFS est lourd. En production, utilise un backend
        * pour le parser et exposer une API légère JSON.
        */
-      trafiklabKey: null, // clé côté backend (TRAFIKLAB_KEY), pas dans le navigateur
+      // SECRET : ne jamais coller RESROBOT/TRAFIKLAB ici — uniquement backend (.env / Vercel)
+      trafiklabKey: null,
 
       // Endpoints (ne pas modifier sauf si Trafiklab change)
       gtfsStaticUrl: (key) => `https://opendata.samtrafiken.se/gtfs/skane/skane.zip?key=${key}`,
@@ -1456,9 +1528,13 @@
       // Backend GTFS — même origine si servi via backend (port 3001), sinon localhost:3001
       // Lancer : cd backend && node server.js  →  http://localhost:3001
       // '' = même origine (Vercel / backend local :3001). Sinon localhost:3001 en dev fichier.
-      apiBase: (typeof location !== 'undefined' && (location.port === '3001' || /vercel\.app$|netlify\.app$/i.test(location.hostname) || location.protocol === 'https:'))
+      // Backend Skånetrafiken (ResRobot + Trafiklab Realtime). '' = même origine.
+      // Sur Netlify : mets l'URL Vercel dans Réglages (ex. https://vagvis.vercel.app)
+      apiBase: (typeof location !== 'undefined' && (location.port === '3001' || /vercel\.app$/i.test(location.hostname)))
         ? ''
-        : (typeof location !== 'undefined' && location.protocol.startsWith('http') ? 'http://localhost:3001' : ''),
+        : (typeof location !== 'undefined' && location.protocol.startsWith('http') && location.port !== '' && location.port !== '80' && location.port !== '443'
+            ? 'http://localhost:3001' : ''),
+      backendUrl: null, // URL backend distante (Vercel) — prioritaire sur apiBase
 
       // 'mock' = données locales | 'live' = appelle le backend /api/departures
       dataMode: 'live'
@@ -1467,6 +1543,8 @@
     // Clés : CONFIG d'abord, sinon localStorage (saisie dans Réglages, jamais renvoyée ici)
     (function loadStoredKeys() {
       try {
+        const bu = localStorage.getItem('vagvis-backend-url');
+        if (bu && /^https?:\/\//i.test(bu)) CONFIG.backendUrl = bu.replace(/\/$/, '');
         const g = localStorage.getItem('vagvis-google-key');
         const m = localStorage.getItem('vagvis-mapbox-key');
         if (g && g.startsWith('AIza') && (!CONFIG.googleMapsApiKey || CONFIG.googleMapsApiKey === null)) {
@@ -1651,8 +1729,16 @@
           }
         };
       }
-      // Fonds GRATUITS sans clé (évite « API KEY REQUIRED » de CARTO)
+      // Fonds GRATUITS sans clé API
       if (theme === 'dark') {
+        return {
+          url: 'https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Dark_Gray_Base/MapServer/tile/{z}/{y}/{x}',
+          options: { maxZoom: 19, maxNativeZoom: 16, attribution: 'Tiles © Esri' }
+        };
+      }
+      // Rendu type Facebook / Meta Map : mer turquoise, terres pastel (OSM + filtre CSS)
+      // OSM standard = eau bleue + parcs verts, sans clé
+      if (theme === 'ios' || theme === 'light' || theme === 'root') {
         return {
           url: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
           options: {
@@ -1661,13 +1747,9 @@
           }
         };
       }
-      // Mode clair classique
       return {
         url: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
-        options: {
-          maxZoom: 19,
-          attribution: '© OpenStreetMap'
-        }
+        options: { maxZoom: 19, attribution: '© OpenStreetMap' }
       };
     }
 
@@ -1675,29 +1757,107 @@
       const btn = document.getElementById('trafficToggle');
       if (!btn) return;
       if (trafficEnabled) {
-        btn.style.background = 'var(--primary)';
-        btn.style.borderColor = 'var(--primary)';
+        btn.style.background = '#ea580c';
+        btn.style.borderColor = '#ea580c';
         btn.style.color = 'white';
         btn.title = 'Trafic activé — cliquer pour désactiver';
+        btn.innerHTML = '<i class="fas fa-car"></i>';
       } else {
         btn.style.background = 'var(--bg-card)';
         btn.style.borderColor = 'var(--border)';
         btn.style.color = 'var(--text)';
-        btn.title = 'Afficher le trafic';
+        btn.title = 'Afficher le trafic en temps réel';
+        btn.innerHTML = '<i class="fas fa-car"></i>';
+      }
+      const badge = document.getElementById('trafficStatusBadge');
+      if (badge) {
+        if (trafficEnabled) {
+          badge.style.display = 'flex';
+          badge.textContent = getTrafficLabel();
+        } else {
+          badge.style.display = 'none';
+        }
       }
     }
 
-    function toggleTraffic() {
-      const token = CONFIG.mapboxToken;
-      if (!token || !String(token).startsWith('pk.')) {
-        showToast('Trafic Mapbox : ajoute ta clé pk… dans CONFIG.mapboxToken');
-        return;
+    /** Facteur trafic Skåne (heure locale suédoise) — pointe matinée / soirée */
+    function getTrafficLevel() {
+      try {
+        const fmt = new Intl.DateTimeFormat('en-GB', {
+          timeZone: 'Europe/Stockholm', hour: 'numeric', minute: 'numeric', hour12: false,
+          weekday: 'short'
+        });
+        const parts = fmt.formatToParts(new Date());
+        const hour = Number(parts.find(p => p.type === 'hour')?.value || 12);
+        const minute = Number(parts.find(p => p.type === 'minute')?.value || 0);
+        const wd = (parts.find(p => p.type === 'weekday')?.value || '').toLowerCase();
+        const weekend = /sat|sun/.test(wd);
+        const t = hour + minute / 60;
+        if (weekend) {
+          if (t >= 11 && t <= 16) return { level: 'moderate', factor: 1.12, label: 'Trafic modéré (week-end)' };
+          return { level: 'fluid', factor: 1.0, label: 'Circulation fluide' };
+        }
+        // Semaine Malmö / Lund
+        if ((t >= 7 && t < 9.25) || (t >= 15.5 && t < 18.25)) {
+          return { level: 'heavy', factor: 1.35, label: 'Heure de pointe — trafic dense' };
+        }
+        if ((t >= 6.5 && t < 7) || (t >= 9.25 && t < 10) || (t >= 14.5 && t < 15.5) || (t >= 18.25 && t < 19)) {
+          return { level: 'moderate', factor: 1.18, label: 'Trafic un peu chargé' };
+        }
+        if (t >= 22 || t < 5.5) {
+          return { level: 'fluid', factor: 0.95, label: 'Circulation fluide (nuit)' };
+        }
+        return { level: 'fluid', factor: 1.05, label: 'Circulation plutôt fluide' };
+      } catch (_) {
+        return { level: 'fluid', factor: 1.1, label: 'Trafic estimé' };
       }
+    }
+
+    function getTrafficLabel() {
+      const lv = getTrafficLevel();
+      const mapbox = CONFIG.mapboxToken && String(CONFIG.mapboxToken).startsWith('pk.');
+      if (mapbox) return '🚦 ' + lv.label + ' · carte Mapbox';
+      return '🚦 ' + lv.label;
+    }
+
+    /** Applique le facteur trafic aux minutes d'un mode */
+    function applyTrafficToMinutes(minutes, mode) {
+      if (!trafficEnabled || minutes == null) return minutes;
+      const { factor, level } = getTrafficLevel();
+      let f = factor;
+      if (mode === 'walk') f = 1 + (factor - 1) * 0.15; // marche peu impactée
+      else if (mode === 'bike') f = 1 + (factor - 1) * 0.35;
+      else if (mode === 'bus') f = factor;
+      else if (mode === 'train') f = 1 + (factor - 1) * 0.2;
+      else f = factor;
+      return Math.max(1, Math.round(minutes * f));
+    }
+
+    function trafficRouteColor(mode) {
+      if (!trafficEnabled) return null;
+      const lv = getTrafficLevel().level;
+      if (lv === 'heavy') return '#dc2626';
+      if (lv === 'moderate') return '#ea580c';
+      return '#16a34a';
+    }
+
+    function toggleTraffic() {
       trafficEnabled = !trafficEnabled;
       localStorage.setItem('vagvis-traffic', trafficEnabled ? '1' : '0');
       updateTrafficButton();
       applyMapTiles();
-      showToast(trafficEnabled ? 'Trafic activé' : 'Trafic désactivé');
+      // Re-colorer le tracé de nav si actif
+      if (navActive && navCoords && navCoords.length > 1) {
+        ensureNavPolyline(navCoords, (navDest && navDest.mode) || 'walk');
+      }
+      const mapbox = CONFIG.mapboxToken && String(CONFIG.mapboxToken).startsWith('pk.');
+      if (trafficEnabled) {
+        showToast(mapbox
+          ? ('Trafic live Mapbox · ' + getTrafficLevel().label)
+          : ('Trafic estimé Skåne · ' + getTrafficLevel().label + ' — clé Mapbox pour le calque live'));
+      } else {
+        showToast('Trafic désactivé');
+      }
     }
 
     // ========== VUE 3D (Mapbox GL) ==========
@@ -1741,7 +1901,7 @@
     async function enable3DView() {
       const token = CONFIG.mapboxToken;
       if (!token || !String(token).startsWith('pk.')) {
-        showToast('Vue 3D : ajoute ta clé Mapbox pk… dans CONFIG.mapboxToken');
+        showToast('Vue 3D : ajoutez votre clé Mapbox pk… dans les réglages');
         return;
       }
       showToast('Chargement de la vue 3D…');
@@ -1809,7 +1969,7 @@
       if (leaf) leaf.classList.add('hidden-3d');
       view3dEnabled = true;
       update3dButton();
-      showToast('Vue 3D activée — fais glisser pour tourner');
+      showToast('Vue 3D activée — faites glisser pour tourner');
     }
 
     function disable3DView() {
@@ -1840,30 +2000,90 @@
       else enable3DView();
     }
 
+    const MAP_FILTER_PRESETS = {
+      facebook: {
+        /* Lisible + beau : mer bleue, terres claires, labels pas lavés */
+        filter: 'saturate(1.18) brightness(1.06) contrast(0.96)',
+        wash: 'linear-gradient(180deg, rgba(147,197,253,0.08) 0%, rgba(255,255,255,0.03) 50%, rgba(255,251,235,0.06) 100%)'
+      },
+      apple: {
+        filter: 'saturate(1.05) brightness(1.04) contrast(0.98)',
+        wash: 'linear-gradient(180deg, rgba(255,255,255,0.04) 0%, rgba(240,248,255,0.06) 100%)'
+      },
+      ios: {
+        filter: 'saturate(1.15) brightness(1.05) contrast(0.97)',
+        wash: 'linear-gradient(180deg, rgba(186,230,253,0.1) 0%, rgba(255,255,255,0.04) 100%)'
+      },
+      vivid: {
+        filter: 'saturate(1.45) brightness(1.06) contrast(1.05)',
+        wash: 'none'
+      },
+      muted: {
+        filter: 'saturate(0.75) brightness(1.05) contrast(0.95)',
+        wash: 'linear-gradient(180deg, rgba(255,255,255,0.08) 0%, rgba(241,245,249,0.1) 100%)'
+      },
+      dark: {
+        filter: 'brightness(1.1) contrast(1.08) saturate(0.9)',
+        wash: 'none'
+      },
+      none: { filter: 'none', wash: 'none' }
+    };
+
+    let mapFilterPreset = localStorage.getItem('vagvis-map-filter') || 'facebook';
+
+    function applyMapFilter(theme, type) {
+      const pane = document.querySelector('.leaflet-tile-pane');
+      let presetName = mapFilterPreset || 'facebook';
+      if (type === 'satellite') presetName = 'none';
+      else if (theme === 'dark') presetName = (presetName === 'none') ? 'none' : 'dark';
+      // iOS / clair : garder facebook (lisible et joli) sauf choix explicite
+      else if ((theme === 'ios' || theme === 'light') && !localStorage.getItem('vagvis-map-filter')) {
+        presetName = 'facebook';
+      }
+
+      if (snapToneActive) presetName = 'none'; // la recoloration Snap remplace les filtres CSS
+      const preset = MAP_FILTER_PRESETS[presetName] || MAP_FILTER_PRESETS.facebook;
+      if (pane) {
+        pane.style.filter = preset.filter;
+        pane.style.transition = 'filter 0.35s ease';
+      }
+      let wash = document.getElementById('mapColorWash');
+      if (!wash) {
+        wash = document.createElement('div');
+        wash.id = 'mapColorWash';
+        wash.style.cssText = 'position:absolute;inset:0;z-index:200;pointer-events:none;transition:opacity 0.35s ease;';
+        document.getElementById('map')?.appendChild(wash);
+      }
+      if (!preset.wash || preset.wash === 'none' || type === 'satellite') {
+        wash.style.opacity = '0';
+        wash.style.background = 'transparent';
+      } else {
+        wash.style.opacity = '1';
+        wash.style.background = preset.wash;
+      }
+    }
+
+    function setMapFilterPreset(name) {
+      if (!MAP_FILTER_PRESETS[name]) return;
+      mapFilterPreset = name;
+      localStorage.setItem('vagvis-map-filter', name);
+      const theme = document.documentElement.getAttribute('data-theme') || 'ios';
+      applyMapFilter(theme, mapType);
+      showToast('Filtre carte : ' + name);
+      try { renderSettings(); } catch (_) {}
+    }
+    window.setMapFilterPreset = setMapFilterPreset;
+
+    let snapToneActive = false;
     function applyMapTiles() {
-      let theme = document.documentElement.getAttribute('data-theme') || localStorage.getItem('vagvis-theme') || 'ios';
-      if (theme === 'ios') theme = 'light';
-      const cfg = getTileConfig(theme, mapType);
+      const theme = document.documentElement.getAttribute('data-theme') || localStorage.getItem('vagvis-theme') || 'ios';
+      const cfg = getTileConfig(theme === 'ios' ? 'ios' : theme, mapType);
       if (tileLayer && map) map.removeLayer(tileLayer);
       // Rendu « Snap Map » sur la carte claire (OpenStreetMap recolorée) ; sinon tuiles normales
-      const useSnapTone = (theme === 'light') && mapType !== 'satellite'
+      snapToneActive = (theme === 'ios' || theme === 'light' || theme === 'root') && mapType !== 'satellite'
         && /tile\.openstreetmap\.org/.test(cfg.url) && !snapToneDisabled();
-      tileLayer = (useSnapTone ? new SnapTileLayer(cfg.url, cfg.options) : L.tileLayer(cfg.url, cfg.options)).addTo(map);
-
-      // Teinte carte selon le thème (iOS = ciel bleu VāgVis)
-      const pane = document.querySelector('.leaflet-tile-pane');
-      if (pane) {
-        if (mapType === 'satellite' || useSnapTone) {
-          pane.style.filter = 'none';
-        } else if (theme === 'dark') {
-          pane.style.filter = 'brightness(1.08) contrast(1.05)';
-        } else if (theme === 'ios') {
-          // Voile bleuté + contraste doux pour coller au dégradé ciel
-          pane.style.filter = 'saturate(0.95) brightness(1.04) contrast(0.98)'; // (sans teinte : la carte OpenStreetMap est déjà en couleurs)
-        } else {
-          pane.style.filter = 'saturate(1.05)';
-        }
-      }
+      tileLayer = (snapToneActive ? new SnapTileLayer(cfg.url, cfg.options) : L.tileLayer(cfg.url, cfg.options)).addTo(map);
+      applyMapFilter(theme, mapType);
 
       const btn = document.getElementById('satToggle');
       if (btn) {
@@ -1923,7 +2143,7 @@
     async function enableGoogleMap() {
       const key = CONFIG.googleMapsApiKey;
       if (!key || String(key).length < 20) {
-        showToast('Google Maps : colle ta clé dans CONFIG.googleMapsApiKey');
+        showToast('Google Maps : ajoutez votre clé dans les réglages');
         return;
       }
       // Quitter 3D Mapbox si actif
@@ -1934,7 +2154,7 @@
       try {
         await loadGoogleMapsApi();
       } catch (e) {
-        showToast('Impossible de charger Google Maps — vérifie la clé API');
+        showToast('Impossible de charger Google Maps — vérifiez la clé API');
         return;
       }
 
@@ -2019,7 +2239,7 @@
       const target = new google.maps.LatLng(lat, lng);
       sv.getPanorama({ location: target, radius: 80 }, (data, status) => {
         if (status !== google.maps.StreetViewStatus.OK || !data || !data.location) {
-          showToast('Pas de Street View ici — essaie une rue en ville');
+          showToast('Pas de Street View ici — essayez une rue en ville');
           return;
         }
         const panorama = googleMap.getStreetView();
@@ -2116,18 +2336,41 @@
     let regionMode = false;
 
     const SKANE_CITIES = [
-      { name: 'Malmö', lat: 55.6050, lng: 13.0038, tag: 'Capitale régionale' },
-      { name: 'Lund', lat: 55.7047, lng: 13.1932, tag: 'Université' },
-      { name: 'Helsingborg', lat: 56.0465, lng: 12.6945, tag: 'Nord · ferries' },
-      { name: 'Kristianstad', lat: 56.0294, lng: 14.1567, tag: 'Est' },
-      { name: 'Trelleborg', lat: 55.3750, lng: 13.1570, tag: 'Sud · ferry' },
-      { name: 'Ystad', lat: 55.4297, lng: 13.8204, tag: 'Sud-est' },
-      { name: 'Landskrona', lat: 55.8708, lng: 12.8300, tag: 'Côte ouest' },
-      { name: 'Eslöv', lat: 55.8393, lng: 13.3039, tag: 'Centre' },
-      { name: 'Hässleholm', lat: 56.1591, lng: 13.7664, tag: 'Nord-est' },
-      { name: 'Ängelholm', lat: 56.2428, lng: 12.8622, tag: 'Nord-ouest' },
+      // —— Base projet mère ——
+      { name: 'Malmö', lat: 55.6050, lng: 13.0038, tag: 'Base · capitale régionale', hub: true },
+      // —— Grandes villes ——
+      { name: 'Lund', lat: 55.7047, lng: 13.1932, tag: 'Université', hub: true },
+      { name: 'Helsingborg', lat: 56.0465, lng: 12.6945, tag: 'Nord · ferries', hub: true },
+      { name: 'Kristianstad', lat: 56.0294, lng: 14.1567, tag: 'Est', hub: true },
+      // —— Sud ——
+      { name: 'Trelleborg', lat: 55.3750, lng: 13.1570, tag: 'Sud · ferry', hub: true },
+      { name: 'Ystad', lat: 55.4297, lng: 13.8204, tag: 'Sud-est', hub: true },
+      { name: 'Vellinge', lat: 55.4710, lng: 13.0200, tag: 'Sud-ouest' },
+      { name: 'Skurup', lat: 55.4780, lng: 13.5050, tag: 'Sud' },
+      { name: 'Svedala', lat: 55.5070, lng: 13.2350, tag: 'Sud Malmö' },
+      // —— Ouest ——
+      { name: 'Landskrona', lat: 55.8708, lng: 12.8300, tag: 'Côte ouest', hub: true },
+      { name: 'Höganäs', lat: 56.1997, lng: 12.5580, tag: 'Nord-ouest' },
+      { name: 'Ängelholm', lat: 56.2428, lng: 12.8622, tag: 'Nord-ouest', hub: true },
+      { name: 'Båstad', lat: 56.4268, lng: 12.8530, tag: 'Nord · Bjäre' },
+      // —— Centre ——
+      { name: 'Eslöv', lat: 55.8393, lng: 13.3039, tag: 'Centre', hub: true },
+      { name: 'Höör', lat: 55.9370, lng: 13.5420, tag: 'Centre' },
+      { name: 'Hörby', lat: 55.8520, lng: 13.6610, tag: 'Centre-est' },
+      { name: 'Staffanstorp', lat: 55.6420, lng: 13.2080, tag: 'Entre Malmö et Lund' },
+      { name: 'Lomma', lat: 55.6620, lng: 13.0750, tag: 'Côte · près Malmö' },
+      { name: 'Burlöv', lat: 55.6380, lng: 13.0820, tag: 'Agglomération Malmö' },
+      { name: 'Kävlinge', lat: 55.7920, lng: 13.1120, tag: 'Nord Malmö' },
+      // —— Nord / Est ——
+      { name: 'Hässleholm', lat: 56.1591, lng: 13.7664, tag: 'Nord-est', hub: true },
       { name: 'Simrishamn', lat: 55.5566, lng: 14.3500, tag: 'Côte est' },
-      { name: 'Höganäs', lat: 56.1997, lng: 12.5580, tag: 'Nord-ouest' }
+      { name: 'Tomelilla', lat: 55.5430, lng: 13.9550, tag: 'Österlen' },
+      { name: 'Osby', lat: 56.3800, lng: 13.9950, tag: 'Nord' },
+      { name: 'Perstorp', lat: 56.1380, lng: 13.3950, tag: 'Nord' },
+      { name: 'Klippan', lat: 56.1350, lng: 13.1300, tag: 'Nord-ouest' },
+      { name: 'Bjuv', lat: 56.0830, lng: 12.9250, tag: 'Nord Helsingborg' },
+      // —— Hors région mais lien fort ——
+      { name: 'Copenhague', lat: 55.6761, lng: 12.5683, tag: 'Danemark · Öresund', hub: true }
     ];
 
     // Les 21 autres communes de Skåne (avec les 12 ci-dessus : les 33 communes de la région).
@@ -2145,6 +2388,7 @@
       const t = results.find(x => /^(city|town|village|administrative|suburb|hamlet)$/.test(x.label)) || results[0];
       if (regionLayer && map.hasLayer(regionLayer)) map.removeLayer(regionLayer);
       openAddress(name, t.lat, t.lng);
+      try { map.setView([t.lat, t.lng], 13); } catch (_) {}
     }
 
     function initRegionMap() {
@@ -2204,7 +2448,7 @@
               `).join('')}
             </div>
             <p style="font-size:12px;color:var(--text-muted);margin-top:14px;line-height:1.4;">
-              Skåne relie Malmö, Lund, Helsingborg, Kristianstad, Trelleborg, Ystad… 
+              Projet régional Skåne — base Malmö. Relie Lund, Helsingborg, Kristianstad, Trelleborg, Ystad, Hässleholm… 
               Trains Pågatåg & Öresundståg + bus Skånetrafiken.
             </p>
             <div class="route-card" style="margin-top:12px;" onclick="focusMalmo()">
@@ -2353,7 +2597,45 @@
     let poiLayer = null;
     let selectedPoi = null;
 
+    
+    function normalizeSearch(s) {
+      return String(s || '').toLowerCase()
+        .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+        .replace(/[^a-z0-9\s]/g, ' ')
+        .replace(/\s+/g, ' ')
+        .trim();
+    }
+
+    function poiMatchesQuery(poi, q) {
+      const n = normalizeSearch(q);
+      if (!n || !poi) return false;
+      const nameL = normalizeSearch(poi.name);
+      const descL = normalizeSearch(poi.desc);
+      const addrL = normalizeSearch(poi.address);
+      if (nameL.includes(n) || n.includes(nameL)) return true;
+      if (descL && descL.includes(n)) return true;
+      if (addrL && (addrL.includes(n) || n.includes(addrL))) return true;
+      if (Array.isArray(poi.aliases)) {
+        for (const a of poi.aliases) {
+          const al = normalizeSearch(a);
+          if (!al) continue;
+          if (al.includes(n) || n.includes(al)) return true;
+        }
+      }
+      // Tous les mots significatifs (ex. komvux + sodervarn + sparvagsgatan)
+      const words = n.split(' ').filter(w => w.length >= 3);
+      if (words.length >= 2) {
+        const blob = nameL + ' ' + descL + ' ' + addrL + ' ' + (poi.aliases || []).map(normalizeSearch).join(' ');
+        if (words.every(w => blob.includes(w))) return true;
+      }
+      return false;
+    }
+
     const POIS = [
+      // Stades & sport
+      { id: 'bk_olympic', name: 'BK Olympic – Lindängens IP', type: 'stadium', lat: 55.5549, lng: 13.0124, nearestStop: 'Lindängen (Bus 8 / 33)', open: true, hours: 'Selon entraînements / matchs', desc: 'Centre d\'entraînement et stade de BK Olympic (football), Lindängen, Malmö. Adresse : Tenorgatan / Lindängen.', aliases: ['BK Olympic', 'Olympic', 'Lindängens IP', 'Lindangen IP', 'Lindängen IP', 'centre entraînement Olympic', 'traningsanlaggning Olympic'] },
+      { id: 'malmo_ip', name: 'Malmö IP', type: 'stadium', lat: 55.5942, lng: 12.9885, nearestStop: 'Pildammsparken / Bus', open: true, hours: 'Match days', desc: 'Stade historique Malmö', aliases: ['Malmö IP', 'Malmo IP'] },
+      { id: 'stadion_malmo', name: 'Eleda Stadion (Malmö FF)', type: 'stadium', lat: 55.5835, lng: 12.9875, nearestStop: 'Stadion (Bus)', open: true, hours: 'Match days', desc: 'Stade de Malmö FF', aliases: ['Eleda', 'Swedbank Stadion', 'Malmö FF', 'MFF'] },
       // Parcs & plages
       { id: 'pildammsparken', name: 'Pildammsparken', type: 'park', lat: 55.5890, lng: 12.9880, weather: { sun: true, wind: 'faible', temp: '14°C' }, crowd: 'Calme', nearestStop: 'Pildammsparken (Bus 5)', open: true },
       { id: 'ribersborg', name: 'Ribersborgsstranden', type: 'beach', lat: 55.6055, lng: 12.9600, weather: { sun: true, wind: 'modéré', temp: '13°C' }, crowd: 'Animé', nearestStop: 'Ribersborg (Bus 4)', open: true },
@@ -2375,8 +2657,8 @@
       { id: 'hotel_hyllie', name: 'Quality Hotel View (Hyllie)', type: 'hotel', lat: 55.5625, lng: 12.9740, nearestStop: 'Hyllie station', open: true, hours: '24h', desc: 'Hyllie – Emporia & Copenhague' },
       { id: 'hotel_lund', name: 'Hotel Lundia', type: 'hotel', lat: 55.7045, lng: 13.1930, nearestStop: 'Lund C', open: true, hours: '24h', desc: 'Centre de Lund' },
       // KOMVUX – écoles adultes (nouveaux arrivants)
-      { id: 'komvux_malmo_centrum', name: 'Komvux Malmö Centrum', type: 'school', lat: 55.6010, lng: 13.0050, nearestStop: 'Triangeln / Södervärn', open: true, hours: '08:00 – 16:30', desc: 'Formation adultes, SFI, gymnasie' },
-      { id: 'komvux_malmo_soder', name: 'Komvux Malmö Söder', type: 'school', lat: 55.5850, lng: 13.0000, nearestStop: 'Södervärn (Bus 5, 2)', open: true, hours: '08:00 – 16:00', desc: 'Komvux & SFI' },
+      { id: 'komvux_malmo_centrum', name: 'Komvux Malmö — Kungsgatan 44', type: 'school', lat: 55.6058, lng: 13.0035, nearestStop: 'Malmö C / Gustav Adolfs torg', open: true, hours: '08:00 – 16:00', address: 'Kungsgatan 44, Malmö', desc: 'Komvux Malmö — cours et yrkespaket', aliases: ['Komvux Kungsgatan', 'Kungsgatan 44', 'Komvux Malmö Centrum'] },
+      { id: 'komvux_malmo_soder', name: 'Komvux Södervärn (SFI)', type: 'school', lat: 55.5872, lng: 13.0104, nearestStop: 'Södervärn (Bus 2, 5, 8)', open: true, hours: '08:00 – 16:00', address: 'Spårvägsgatan 9, 214 27 Malmö', desc: 'Komvux Malmö SFI — Spårvägsgatan 9, près de Södervärn', aliases: ['Komvux Södervärn', 'Komvux Sodervarn', 'Komvux Soder', 'Spårvägsgatan 9', 'Sparvagsgatan 9', 'SFI Södervärn', 'Komvux Malmö Söder', 'Komvux Malmo Soder'] },
       { id: 'komvux_malmo_norr', name: 'Komvux Malmö Norr', type: 'school', lat: 55.6150, lng: 13.0200, nearestStop: 'Värnhem / Bus 2', open: true, hours: '08:00 – 16:30', desc: 'Formation adultes' },
       { id: 'komvux_hyllie', name: 'Komvux Hyllie', type: 'school', lat: 55.5620, lng: 12.9760, nearestStop: 'Hyllie station', open: true, hours: '08:00 – 16:00', desc: 'Komvux proche Hyllie' },
       { id: 'komvux_limhamn', name: 'Komvux Limhamn', type: 'school', lat: 55.5830, lng: 12.9350, nearestStop: 'Limhamn (Bus 8)', open: true, hours: '08:00 – 15:30', desc: 'Formation adultes Limhamn' },
@@ -2588,13 +2870,22 @@
 
       let infoHtml = '';
       if (poi.type === 'park' || poi.type === 'beach') {
-        const sun = poi.weather?.sun ? '☀️ Ensoleillé' : '☁️ Nuageux';
-        const wind = poi.weather?.wind === 'fort' ? '💨 Vent fort' : poi.weather?.wind === 'modéré' ? '🍃 Vent modéré' : '🌿 Vent faible';
+        let sun = poi.weather?.sun ? '☀️ Ensoleillé' : '☁️ Nuageux';
+        let wind = poi.weather?.wind === 'fort' ? '💨 Vent fort' : poi.weather?.wind === 'modéré' ? '🍃 Vent modéré' : '🌿 Vent faible';
+        let tempLive = poi.weather?.temp || '';
+        if (weatherCache && weatherCache.data) {
+          const [, lab] = weatherCodeInfo(weatherCache.data.weathercode);
+          sun = weatherCache.data.weathercode <= 1 ? '☀️ Ensoleillé' :
+                weatherCache.data.weathercode <= 3 ? '⛅ Nuageux' : lab;
+          const ws = weatherCache.data.windspeed || 0;
+          wind = ws >= 40 ? '💨 Vent fort' : ws >= 20 ? '🍃 Vent modéré' : '🌿 Vent faible';
+          tempLive = Math.round(weatherCache.data.temperature) + '°C';
+        }
         infoHtml = `
           <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px;">
             <span style="background:var(--bg-card);border:1px solid var(--border);padding:6px 12px;border-radius:20px;font-size:12px;font-weight:600;">${sun}</span>
             <span style="background:var(--bg-card);border:1px solid var(--border);padding:6px 12px;border-radius:20px;font-size:12px;font-weight:600;">${wind}</span>
-            <span style="background:var(--bg-card);border:1px solid var(--border);padding:6px 12px;border-radius:20px;font-size:12px;font-weight:600;">${poi.weather?.temp || ''}</span>
+            <span style="background:var(--bg-card);border:1px solid var(--border);padding:6px 12px;border-radius:20px;font-size:12px;font-weight:600;">${tempLive || poi.weather?.temp || ''}</span>
             <span style="background:var(--bg-card);border:1px solid var(--border);padding:6px 12px;border-radius:20px;font-size:12px;font-weight:600;">👥 ${poi.crowd}</span>
           </div>`;
       } else if (poi.type === 'restaurant') {
@@ -2671,7 +2962,7 @@
               </div>
             `).join('') || '<div style="font-size:12px;color:var(--text-muted);">Horaires non disponibles</div>'}
           </div>
-          <div style="font-size:11px;color:var(--text-muted);margin-bottom:8px;">Horaires simulés réalistes — vérifiez l’app Skånetrafiken</div>`;
+          <div style="font-size:11px;color:var(--text-muted);margin-bottom:8px;">Horaires simulés réalistes — vérifiez l'application Skånetrafiken</div>`;
       } else if (poi.type === 'trainstop') {
         const lines = poi.lines || [];
         const scheduleRows = lines.map(l => {
@@ -2756,7 +3047,7 @@
       if (mode === 'all' || mode === 'bus') {
         modeCards.push(`<div class="route-card" onclick="goToPoi('bus', ${busMin})">
             <div class="route-top"><div class="route-duration">${busMin} min</div><div class="route-price">25–34 kr</div></div>
-            <div style="font-size:12px;font-weight:600;color:var(--primary);margin:-4px 0 8px;">dont ~${estPoi.busWait} min d'attente</div>
+            <div style="font-size:12px;font-weight:600;color:var(--primary);margin:-4px 0 8px;">estimation · dont ~${estPoi.busWait} min d'attente</div>
             <div class="route-modes"><span class="mode-pill bus"><i class="fas fa-bus"></i> Bus</span><span class="mode-pill walk"><i class="fas fa-walking"></i> arrêts</span></div>
             <div class="route-meta"><span>Via ${poi.nearestStop || 'arrêt proche'}</span></div></div>`);
       }
@@ -2791,7 +3082,7 @@
       `;
 
       // Centrer la carte sur le POI
-      map.setView([poi.lat, poi.lng], 15);
+      map.setView([poi.lat, poi.lng], (poi.type === 'school' || poi.address) ? 18 : 16);
       routeLayer.clearLayers();
       L.circleMarker([poi.lat, poi.lng], {
         radius: 10, color: '#5eb6f0', fillColor: '#5eb6f0', fillOpacity: 0.3, weight: 2
@@ -2846,50 +3137,125 @@
      */
     function estimateSkaneTimes(distKm) {
       const d = Math.max(0.05, distKm || 0.05);
-      // Marche ~4,5 km/h en ville → ~13,5 min/km (+ 1 min démarrage)
-      // (distance à vol d'oiseau x 1,3 pour les détours réels des rues, puis ~4,6 km/h)
-      const walk = Math.max(4, Math.round(d * 16.5 + 1));
-      // Vélo urbain ~12–14 km/h avec feux → ~4,5–5 min/km (+ 1 min)
-      const bike = Math.max(5, Math.round(d * 5 + 1));
-      // Bus : attente moyenne = la moitié de l'intervalle entre deux bus (~3-6 min en ville)
-      // + trajet ~16 km/h + 3 min de marche aux arrêts
-      const busRide = Math.round(d * 3.8);
-      const busWait = d < 1.2 ? 3 : (d < 3 ? 4 : 6);
-      const busWalk = 3;
+      // Aligné sur Google Maps / Skånetrafiken (ex. Södervärn→Professorsgatan ~2,2 km)
+      // Marche : ~4 km/h en ville (Google ~38 min pour 2,2 km réseau)
+      const walk = Math.max(5, Math.round(d * 16 + 2));
+      // Vélo urbain ~11–12 km/h avec feux → ~5–5,5 min/km
+      const bike = Math.max(4, Math.round(d * 5.2 + 1));
+      // Bus Malmö dense : fréquence souvent 5–10 min → attente moyenne plus basse
+      const busRide = Math.max(2, Math.round(d * 3.0));
+      const busWait = d < 1.5 ? 3 : (d < 3 ? 4 : (d < 6 ? 6 : 8));
+      const busWalk = d < 2.5 ? 2 : 3;
       const bus = Math.max(8, busWait + busRide + busWalk);
-      // Train / Pågatåg : marche gare 5 min + attente 6 + trajet plus rapide
-      const train = Math.max(14, 5 + 6 + Math.round(d * 1.6));
+      // Train peu pertinent sous ~3 km (détour gare) — sinon marche gare + attente + trajet
+      const train = d < 3
+        ? Math.max(bus + 5, 18)
+        : Math.max(14, 5 + 5 + Math.round(d * 1.5));
       return {
         walk, bike, bus, train,
         busWait,
-        note: 'Inclut attente bus / marche aux arrêts (style Skånetrafiken)'
+        note: 'Proche Google Maps / fréquence urbaine Malmö'
       };
     }
+
+    /** Pas de ligne de bus inventée : sans données réelles (ResRobot), on affiche simplement « Bus ». */
+    function suggestBusLine() {
+      return { line: 'Bus', stop: 'arrêt proche', every: null };
+    }
+
+    /** Grands hubs Skånetrafiken (départs + ancrage TC) */
+    const TRANSIT_HUBS = [
+      { name: 'Malmö C', lat: 55.6095, lng: 13.0007 },
+      { name: 'Triangeln', lat: 55.5950, lng: 13.0009 },
+      { name: 'Hyllie', lat: 55.5623, lng: 12.9760 },
+      { name: 'Södervärn', lat: 55.5890, lng: 13.0030 },
+      { name: 'Värnhem', lat: 55.6055, lng: 13.0250 },
+      { name: 'Lindängen', lat: 55.5550, lng: 13.0120 },
+      { name: 'Rosengård', lat: 55.5870, lng: 13.0350 },
+      { name: 'Lund C', lat: 55.7058, lng: 13.1869 },
+      { name: 'Trelleborg C', lat: 55.3750, lng: 13.1570 },
+      { name: 'Helsingborg C', lat: 56.0465, lng: 12.6945 },
+      { name: 'Ystad', lat: 55.4297, lng: 13.8201 },
+      { name: 'Kristianstad C', lat: 56.0294, lng: 14.1567 }
+    ];
+
+    function nearestTransitHub(lat, lng) {
+      let best = TRANSIT_HUBS[0], bestD = Infinity;
+      for (const h of TRANSIT_HUBS) {
+        const d = haversine(lat, lng, h.lat, h.lng);
+        if (d < bestD) { bestD = d; best = h; }
+      }
+      return { ...best, distKm: bestD };
+    }
+
+    function formatResrobotRouteCard(r, idx) {
+      const mins = r.durationMin != null ? r.durationMin : (r.minutes || '—');
+      const legs = r.legs || r.steps || [];
+      const pills = (r.lines && r.lines.length)
+        ? r.lines.map(l => `<span class="mode-pill bus">${l}</span>`).join('')
+        : legs.slice(0, 4).map(leg => {
+            const name = leg.name || leg.line || leg.Product?.name || leg.type || 'TC';
+            const isWalk = /walk|foot|gång|marche/i.test(String(name) + String(leg.type || ''));
+            return `<span class="mode-pill ${isWalk ? 'walk' : 'bus'}">${isWalk ? 'Marche' : name}</span>`;
+          }).join('');
+      const price = r.price != null ? r.price + ' kr' : 'Skånetrafiken';
+      const changes = r.changes != null ? r.changes + ' corr.' : '';
+      const dep = r.departure || r.depTime || '';
+      const arr = r.arrival || r.arrTime || '';
+      const timeRange = (dep || arr) ? `${dep || '?'}${arr ? ' → ' + arr : ''}` : '';
+      return `<div class="route-card" style="border-color:var(--primary);" data-rr="${idx}">
+        <div class="route-top">
+          <div class="route-duration">${mins} min</div>
+          <div class="route-price">${price}</div>
+        </div>
+        <div style="font-size:12px;font-weight:600;color:var(--primary);margin:-4px 0 8px;">
+          ${timeRange || 'Skånetrafiken live'}${changes ? ' · ' + changes : ''}
+        </div>
+        <div class="route-modes">${pills || '<span class="mode-pill bus">Transport</span>'}</div>
+        <div class="route-meta"><span>ResRobot / Trafiklab</span><span>LIVE</span></div>
+      </div>`;
+    }
+
+
 
 
     /** Messages d'erreur API lisibles (FR) */
     function apiErrorMessage(err) {
-      if (!err) return 'Erreur inconnue';
+      if (!err) return 'Erreur API Trafiklab';
       const code = err.code || '';
-      const status = err.status || 0;
-      const raw = (err.message || err.error || '').toString();
-      if (code === 'NO_KEY' || status === 401) return 'Clé ResRobot manquante ou invalide — configure le backend';
-      if (code === 'AUTH') return 'Clé ResRobot refusée (401) — vérifie RESROBOT_KEY';
-      if (code === 'RATE_LIMIT' || status === 429) return 'Quota Trafiklab atteint — réessaie dans quelques minutes';
+      const status = err.status;
+      const raw = String(err.message || err.error || '');
+      if (err.message && !code && !/HTTP|error/i.test(err.message)) {
+        // message déjà humain (backend classifyTrafiklabError)
+        if (/clé|quota|trajet|timeout|Trafiklab|backend|coordonnées/i.test(err.message)) return err.message;
+      }
+      if (code === 'NO_BACKEND') return 'Backend Skånetrafiken non configuré — URL dans Réglages';
+      if (code === 'NO_KEY') return 'Clé Trafiklab manquante sur le serveur';
+      if (code === 'AUTH' || status === 401 || status === 403) return 'Clé API refusée — vérifiez RESROBOT_KEY / TRAFIKLAB_KEY';
+      if (code === 'RATE_LIMIT' || status === 429) return 'Quota Trafiklab atteint — réessayez dans quelques minutes';
       if (code === 'TIMEOUT' || /abort|timeout/i.test(raw)) return 'Délai dépassé — réseau lent ou API lente';
-      if (code === 'NO_TRIPS' || status === 404) return 'Aucun trajet ResRobot pour cette destination';
-      if (code === 'BAD_COORDS' || status === 400) return 'Coordonnées invalides';
-      if (code === 'UPSTREAM' || status >= 500) return 'Service ResRobot temporairement indisponible';
-      if (/Failed to fetch|NetworkError|Load failed/i.test(raw)) return 'Backend injoignable — lance node server.js';
-      if (raw) return raw.length > 120 ? raw.slice(0, 117) + '…' : raw;
-      return 'Erreur API';
+      if (code === 'NO_TRIPS' || code === 'NO_STOP' || status === 404) return 'Aucun trajet ou départ trouvé';
+      if (code === 'BAD_COORDS' || code === 'BAD_REQUEST' || status === 400) return 'Requête invalide (coordonnées ou paramètres)';
+      if (code === 'UPSTREAM' || status >= 500) return 'Service Trafiklab temporairement indisponible';
+      if (code === 'PARSE') return 'Réponse Trafiklab illisible';
+      if (code === 'NETWORK') return 'Impossible de contacter le backend / Trafiklab';
+      if (/^RESROBOT_/i.test(code)) return err.message || ('Erreur ResRobot : ' + code.replace(/^RESROBOT_/i, ''));
+      if (err.message) return err.message;
+      return 'Erreur API Trafiklab';
     }
 
-    /** ResRobot via backend /api/trip (cle RESROBOT_KEY cote serveur) */
+    function resolveApiBase() {
+      if (CONFIG.backendUrl) return String(CONFIG.backendUrl).replace(/\/$/, '');
+      if (CONFIG.apiBase) return String(CONFIG.apiBase).replace(/\/$/, '');
+      if (typeof location !== 'undefined' && location.port === '3001') return '';
+      return '';
+    }
+
+    /** ResRobot via backend /api/trip (clé RESROBOT_KEY côté serveur) */
     async function fetchResrobotRoutes(toLat, toLng) {
-      const base = (CONFIG.apiBase || '').replace(/\/$/, '');
+      const base = resolveApiBase();
       if (!base && !(typeof location !== 'undefined' && (location.port === '3001' || /netlify\.app$|vercel\.app$/i.test(location.hostname)))) {
-        // Pas de backend configuré (ex. Netlify seul)
+        // Pas de backend configuré
         return { ok: false, code: 'NO_BACKEND', error: 'Pas de backend', message: 'Backend ResRobot non configuré', routes: [] };
       }
       const q = new URLSearchParams({
@@ -2933,23 +3299,32 @@
 
     function destCoordsFromName(name) {
       const d = (name || '').toLowerCase();
+      // Toute la Skåne + hubs Malmö (base)
       const table = {
-        'trelleborg': [55.375, 13.157],
-        'lund': [55.7058, 13.1932],
-        'helsingborg': [56.0465, 12.6945],
-        'ystad': [55.4297, 13.8201],
-        'hyllie': [55.5623, 12.976],
-        'triangeln': [55.595, 13.0009],
-        'sodervarn': [55.589, 13.003],
-        'södervärn': [55.589, 13.003],
-        'malmö c': [55.6095, 13.0007],
-        'malmo c': [55.6095, 13.0007],
-        'copenhague': [55.6761, 12.5683],
-        'copenhagen': [55.6761, 12.5683],
-        'köpenhamn': [55.6761, 12.5683]
+        'malmö c': [55.6095, 13.0007], 'malmo c': [55.6095, 13.0007],
+        'triangeln': [55.595, 13.0009], 'hyllie': [55.5623, 12.976],
+        'södervärn': [55.589, 13.003], 'sodervarn': [55.589, 13.003],
+        'lindängen': [55.555, 13.012], 'lindangen': [55.555, 13.012],
+        'lund': [55.7058, 13.1932], 'trelleborg': [55.375, 13.157],
+        'helsingborg': [56.0465, 12.6945], 'ystad': [55.4297, 13.8201],
+        'kristianstad': [56.0294, 14.1567], 'landskrona': [55.8708, 12.83],
+        'eslöv': [55.8393, 13.3039], 'eslov': [55.8393, 13.3039],
+        'hässleholm': [56.1591, 13.7664], 'hassleholm': [56.1591, 13.7664],
+        'ängelholm': [56.2428, 12.8622], 'angelholm': [56.2428, 12.8622],
+        'simrishamn': [55.5566, 14.35], 'höganäs': [56.1997, 12.558], 'hoganas': [56.1997, 12.558],
+        'höör': [55.937, 13.542], 'hoor': [55.937, 13.542],
+        'staffanstorp': [55.642, 13.208], 'lomma': [55.662, 13.075],
+        'vellinge': [55.471, 13.02], 'svedala': [55.507, 13.235],
+        'båstad': [56.4268, 12.853], 'bastad': [56.4268, 12.853],
+        'copenhague': [55.6761, 12.5683], 'copenhagen': [55.6761, 12.5683], 'köpenhamn': [55.6761, 12.5683]
       };
       for (const [k, v] of Object.entries(table)) {
         if (d.includes(k)) return { lat: v[0], lng: v[1], name: name };
+      }
+      // Villes SKANE_CITIES
+      if (typeof SKANE_CITIES !== 'undefined') {
+        const city = SKANE_CITIES.find(c => d.includes(c.name.toLowerCase()));
+        if (city) return { lat: city.lat, lng: city.lng, name: city.name };
       }
       return null;
     }
@@ -2990,15 +3365,20 @@
         else if (mode === 'train') minutes = est.train;
         else minutes = fallbackMin || est.walk;
       }
+      // Trafic temps réel / pointe Skåne
+      minutes = applyTrafficToMinutes(minutes, mode);
 
-      L.polyline(latlngs, {
-        color: colors[mode] || '#5eb6f0',
+      const trafficColor = trafficRouteColor(mode);
+      const drawn = L.polyline(latlngs, {
+        color: trafficColor || colors[mode] || '#5eb6f0',
         weight: 6,
         opacity: 0.92,
         dashArray: mode === 'walk' ? '8, 8' : null,
         lineJoin: 'round',
         lineCap: 'round'
       }).addTo(routeLayer);
+      // Si une navigation est active / va démarrer, garder la référence du tracé
+      navPolyline = drawn;
 
       L.circleMarker([userLat, userLng], {
         radius: 7, color: '#5eb6f0', fillColor: '#5eb6f0', fillOpacity: 1, weight: 2
@@ -3010,10 +3390,14 @@
 
       map.fitBounds(L.latLngBounds(latlngs).pad(0.18));
 
-      const modeLabel = mode === 'bike' ? 'vélo' : mode === 'bus' ? 'bus + marche' : mode === 'train' ? 'train' : 'à pied';
+      const busInfoNav = (mode === 'bus') ? suggestBusLine('', toLat, toLng) : null;
+      const modeLabel = mode === 'bike' ? 'vélo'
+        : mode === 'bus' ? ((busInfoNav && busInfoNav.line) ? busInfoNav.line + ' + marche' : 'bus + marche')
+        : mode === 'train' ? 'train' : 'à pied';
       const waitHint = mode === 'bus' ? `dont ~${est.busWait} min d'attente` :
                        mode === 'train' ? `dont ~6 min d'attente gare` : '';
-      showToast(`Itinéraire ${modeLabel} • ${minutes} min${waitHint ? ' (' + waitHint + ')' : ''}${distLabel ? ' • ' + distLabel : ''}`);
+      const trafNote = trafficEnabled ? ' · ' + getTrafficLevel().label : '';
+      showToast(`Itinéraire ${modeLabel} • ${minutes} min${waitHint ? ' (' + waitHint + ')' : ''}${distLabel ? ' • ' + distLabel : ''}${trafNote}`);
 
       // Bouton démarrer navigation dans le panneau
       const container = document.getElementById('routesContainer');
@@ -3051,23 +3435,28 @@
       await drawCalculatedRoute(poi.lat, poi.lng, mode, minutes);
     }
 
-    function setTheme(theme) {
+    function setTheme(theme, opts) {
+      const fromAuto = opts && opts.fromAuto;
       document.documentElement.setAttribute('data-theme', theme);
       localStorage.setItem('vagvis-theme', theme);
+      if (!fromAuto) {
+        // Choix manuel → désactive l'auto jusqu'à réactivation
+        localStorage.setItem('vagvis-theme-auto', '0');
+      }
       if (map) applyMapTiles();
 
       const btn = document.getElementById('themeToggle');
       if (btn) {
-        // 3 modes : soleil (clair) / lune (sombre) / nuage (ciel iOS)
+        const autoOn = localStorage.getItem('vagvis-theme-auto') !== '0';
         if (theme === 'dark') {
-          btn.innerHTML = '<i class="fas fa-sun"></i>';
-          btn.title = 'Thème : Sombre → Clair';
+          btn.innerHTML = autoOn ? '<i class="fas fa-moon"></i>' : '<i class="fas fa-sun"></i>';
+          btn.title = autoOn ? 'Nuit (auto) — cliquer pour cycle manuel' : 'Thème : Sombre → Clair';
         } else if (theme === 'light') {
           btn.innerHTML = '<i class="fas fa-cloud-sun"></i>';
-          btn.title = 'Thème : Clair → Ciel';
+          btn.title = autoOn ? 'Jour (auto)' : 'Thème : Clair → Ciel';
         } else {
-          btn.innerHTML = '<i class="fas fa-moon"></i>';
-          btn.title = 'Thème : Ciel → Sombre';
+          btn.innerHTML = '<i class="fas fa-sun"></i>';
+          btn.title = autoOn ? 'Jour / ciel (auto)' : 'Thème : Ciel → Sombre';
         }
       }
       updateIosButton();
@@ -3075,6 +3464,111 @@
       if (meta) {
         meta.setAttribute('content',
           theme === 'ios' || !theme ? '#5BADE8' : theme === 'light' ? '#e3f2fb' : '#0a1624');
+      }
+    }
+
+    /** Heure locale Suède (Europe/Stockholm) */
+    function getSkaneDateParts() {
+      try {
+        const parts = new Intl.DateTimeFormat('en-GB', {
+          timeZone: 'Europe/Stockholm',
+          hour: 'numeric', minute: 'numeric', month: 'numeric',
+          hour12: false
+        }).formatToParts(new Date());
+        const hour = Number(parts.find(p => p.type === 'hour')?.value || 12);
+        const minute = Number(parts.find(p => p.type === 'minute')?.value || 0);
+        const month = Number(parts.find(p => p.type === 'month')?.value || 6) - 1;
+        return { hour, minute, month, t: hour + minute / 60 };
+      } catch (_) {
+        const d = new Date();
+        return { hour: d.getHours(), minute: d.getMinutes(), month: d.getMonth(), t: d.getHours() + d.getMinutes() / 60 };
+      }
+    }
+
+    /** Lever / coucher approximatifs à Malmö (heures décimales, heure locale) */
+    function skaneDaylightBounds(month) {
+      // Valeurs approximatives Malmö 55.6°N
+      const sunrise = [8.6, 7.7, 6.4, 5.0, 4.0, 3.5, 3.8, 4.8, 5.9, 7.1, 8.1, 8.8];
+      const sunset  = [15.8, 17.0, 18.2, 20.0, 21.4, 22.1, 21.8, 20.6, 19.1, 17.6, 16.1, 15.4];
+      const m = Math.max(0, Math.min(11, month | 0));
+      return { sunrise: sunrise[m], sunset: sunset[m] };
+    }
+
+    function isNightInSkane() {
+      const { t, month } = getSkaneDateParts();
+      const { sunrise, sunset } = skaneDaylightBounds(month);
+      // Marge crépuscule ~25 min
+      return t < (sunrise - 0.4) || t > (sunset + 0.4);
+    }
+
+    function isTwilightInSkane() {
+      const { t, month } = getSkaneDateParts();
+      const { sunrise, sunset } = skaneDaylightBounds(month);
+      const morning = t >= (sunrise - 0.7) && t < (sunrise + 0.5);
+      const evening = t > (sunset - 0.5) && t <= (sunset + 0.7);
+      return morning || evening;
+    }
+
+    /** Thème suggéré selon jour / nuit / obscurité */
+    function suggestedThemeFromEnvironment(illuminance) {
+      // Capteur de lumière ambiante (lux) si dispo
+      if (typeof illuminance === 'number' && !isNaN(illuminance)) {
+        if (illuminance < 15) return 'dark';       // obscurité
+        if (illuminance < 60) return isNightInSkane() ? 'dark' : 'ios'; // pénombre
+        return 'ios'; // jour clair → ciel
+      }
+      if (isNightInSkane()) return 'dark';
+      if (isTwilightInSkane()) return 'ios';
+      return 'ios'; // journée → fond ciel lisible
+    }
+
+    let ambientLightSensor = null;
+    let lastAutoTheme = null;
+
+    function applyAutoTheme(reason) {
+      if (localStorage.getItem('vagvis-theme-auto') === '0') return;
+      const theme = suggestedThemeFromEnvironment(
+        typeof window.__vagvisLux === 'number' ? window.__vagvisLux : undefined
+      );
+      if (theme === lastAutoTheme &&
+          document.documentElement.getAttribute('data-theme') === theme) return;
+      lastAutoTheme = theme;
+      setTheme(theme, { fromAuto: true });
+      localStorage.setItem('vagvis-theme-auto', '1');
+      if (reason === 'init') {
+        showToast(theme === 'dark' ? 'Mode nuit (auto)' : 'Mode jour (auto)');
+      }
+    }
+
+    function startAmbientLightWatch() {
+      try {
+        if (!('AmbientLightSensor' in window)) return;
+        ambientLightSensor = new AmbientLightSensor({ frequency: 0.2 });
+        ambientLightSensor.addEventListener('reading', () => {
+          window.__vagvisLux = ambientLightSensor.illuminance;
+          if (localStorage.getItem('vagvis-theme-auto') !== '0') {
+            applyAutoTheme('sensor');
+          }
+        });
+        ambientLightSensor.addEventListener('error', () => {});
+        ambientLightSensor.start();
+      } catch (_) { /* permission / unsupported */ }
+    }
+
+    function enableThemeAuto() {
+      localStorage.setItem('vagvis-theme-auto', '1');
+      lastAutoTheme = null;
+      applyAutoTheme('init');
+      showToast('Thème auto : jour / nuit');
+    }
+
+    function toggleThemeAuto() {
+      const on = localStorage.getItem('vagvis-theme-auto') !== '0';
+      if (on) {
+        localStorage.setItem('vagvis-theme-auto', '0');
+        showToast('Thème manuel');
+      } else {
+        enableThemeAuto();
       }
     }
 
@@ -3096,14 +3590,14 @@
     }
 
     function toggleTheme() {
-      // Cycle 3 fonds : ciel (ios) → clair → sombre → ciel
+      // Cycle manuel : ciel → clair → sombre (désactive l'auto)
       const current = document.documentElement.getAttribute('data-theme') || 'ios';
       const order = ['ios', 'light', 'dark'];
       const i = order.indexOf(current);
       const next = order[(i < 0 ? 0 : i + 1) % order.length];
-      setTheme(next);
+      setTheme(next); // marque manuel
       const labels = { ios: 'Fond ciel', light: 'Fond clair', dark: 'Fond sombre' };
-      showToast(labels[next] || next);
+      showToast((labels[next] || next) + ' · manuel');
     }
 
 
@@ -3216,6 +3710,9 @@
         const a = acc != null ? Math.round(acc) + ' m' : '?';
         showToast('GPS OK · précision ±' + a);
       }
+      if (opts && (opts.centerMap || opts.toast)) {
+        try { fetchLocalWeather(userLat, userLng); } catch (_) {}
+      }
       if (document.getElementById('tabNearby')?.classList.contains('active')) {
         renderNearby();
       }
@@ -3229,6 +3726,271 @@
         { enableHighAccuracy: true, maximumAge: 3000, timeout: 15000 }
       );
     }
+
+
+    // ========== MÉTÉO LOCALE + HORAIRE (Open-Meteo, gratuit, sans clé) ==========
+    // Modèles régionaux pertinents Skåne / Nord :
+    // - metno_nordic (MET Norway, ~1 km, MAJ 1h) — excellent Nordiques
+    // - dmi_harmonie_arome_europe (DMI, ~2 km) — Danemark / sud Suède
+    // - auto = meilleur modèle disponible
+    let weatherCache = { at: 0, data: null, hourly: [], model: '' };
+    const WMO_FR = {
+      0: ['☀️', 'Ciel clair'],
+      1: ['🌤️', 'Peu nuageux'],
+      2: ['⛅', 'Partiellement nuageux'],
+      3: ['☁️', 'Couvert'],
+      45: ['🌫️', 'Brouillard'],
+      48: ['🌫️', 'Brouillard givrant'],
+      51: ['🌦️', 'Bruine légère'],
+      53: ['🌦️', 'Bruine'],
+      55: ['🌧️', 'Bruine forte'],
+      61: ['🌧️', 'Pluie légère'],
+      63: ['🌧️', 'Pluie'],
+      65: ['🌧️', 'Forte pluie'],
+      71: ['🌨️', 'Neige légère'],
+      73: ['🌨️', 'Neige'],
+      75: ['❄️', 'Forte neige'],
+      77: ['🌨️', 'Grains de neige'],
+      80: ['🌦️', 'Averses légères'],
+      81: ['🌧️', 'Averses'],
+      82: ['⛈️', 'Fortes averses'],
+      85: ['🌨️', 'Averses de neige'],
+      86: ['❄️', 'Fortes averses de neige'],
+      95: ['⛈️', 'Orage'],
+      96: ['⛈️', 'Orage + grêle'],
+      99: ['⛈️', 'Orage violent']
+    };
+
+    function weatherCodeInfo(code) {
+      if (WMO_FR[code]) return WMO_FR[code];
+      if (code >= 200 && code < 300) return ['⛈️', 'Orage'];
+      if (code >= 300 && code < 600) return ['🌧️', 'Pluie'];
+      if (code >= 600 && code < 700) return ['🌨️', 'Neige'];
+      if (code >= 700 && code < 800) return ['🌫️', 'Brume'];
+      return ['🌡️', 'Météo'];
+    }
+
+    function weatherPlaceName(la, ln) {
+      if (la > 55.55 && la < 55.65 && ln > 12.9 && ln < 13.15) return 'Malmö';
+      if (la > 55.68 && la < 55.75 && ln > 13.15 && ln < 13.25) return 'Lund';
+      if (la > 56.0 && la < 56.1 && ln > 12.65 && ln < 12.75) return 'Helsingborg';
+      if (la > 55.35 && la < 55.42 && ln > 13.12 && ln < 13.2) return 'Trelleborg';
+      if (la > 55.42 && la < 55.45 && ln > 13.82 && ln < 13.86) return 'Ystad';
+      return 'Skåne';
+    }
+
+    function parseHourlyForecast(json) {
+      const h = json.hourly || {};
+      const times = h.time || [];
+      const temps = h.temperature_2m || [];
+      const feels = h.apparent_temperature || [];
+      const codes = h.weather_code || h.weathercode || [];
+      const precip = h.precipitation_probability || [];
+      const rain = h.precipitation || [];
+      const wind = h.wind_speed_10m || h.windspeed_10m || [];
+      const now = Date.now();
+      const out = [];
+      for (let i = 0; i < times.length; i++) {
+        const ts = new Date(times[i]).getTime();
+        // Garder à partir de l'heure courante - 30 min
+        if (ts < now - 30 * 60 * 1000) continue;
+        out.push({
+          time: times[i],
+          ts,
+          temp: temps[i],
+          feels: feels[i],
+          code: codes[i],
+          precipProb: precip[i],
+          precipMm: rain[i],
+          wind: wind[i]
+        });
+        if (out.length >= 24) break;
+      }
+      return out;
+    }
+
+    function nextRainHour(hourly) {
+      for (const h of hourly || []) {
+        if ((h.precipProb != null && h.precipProb >= 50) || (h.precipMm != null && h.precipMm >= 0.2)) {
+          return h;
+        }
+      }
+      return null;
+    }
+
+    function renderWeatherWidget(data) {
+      if (!data) return;
+      const iconEl = document.getElementById('weatherIcon');
+      const tempEl = document.getElementById('weatherTemp');
+      const descEl = document.getElementById('weatherDesc');
+      const metaEl = document.getElementById('weatherMeta');
+      const [emoji, label] = weatherCodeInfo(data.weathercode);
+      if (iconEl) iconEl.textContent = emoji;
+      if (tempEl) tempEl.textContent = Math.round(data.temperature) + '°';
+      if (descEl) descEl.textContent = label;
+      const wind = data.windspeed != null ? Math.round(data.windspeed) + ' km/h' : '';
+      const place = data.place || 'Skåne';
+      const rain = nextRainHour(weatherCache.hourly);
+      let extra = wind;
+      if (rain) {
+        const hh = new Date(rain.time).getHours().toString().padStart(2, '0');
+        extra = (rain.precipProb != null ? rain.precipProb + '% ' : '') + 'pluie ~' + hh + 'h';
+      }
+      if (metaEl) metaEl.textContent = [place, extra].filter(Boolean).join(' · ');
+    }
+
+    function renderHourlyWeatherPanel() {
+      const data = weatherCache.data;
+      const hourly = weatherCache.hourly || [];
+      expandSheet();
+      document.getElementById('tabRoutes')?.click();
+      const title = document.getElementById('sheetTitle');
+      if (title) title.textContent = 'Météo — ' + (data?.place || 'Skåne');
+      const container = document.getElementById('routesContainer');
+      if (!container) return;
+      container.style.display = 'block';
+      if (!data) {
+        container.innerHTML = '<div class="state-message"><p>Météo indisponible</p></div>';
+        return;
+      }
+      const [emoji, label] = weatherCodeInfo(data.weathercode);
+      const modelLabel = weatherCache.model
+        ? (weatherCache.model.includes('metno') ? 'MET Nordic'
+          : weatherCache.model.includes('dmi') ? 'DMI HARMONIE'
+          : weatherCache.model)
+        : 'Open-Meteo auto';
+      const rain = nextRainHour(hourly);
+      const rainNote = rain
+        ? `<div style="font-size:12px;font-weight:600;color:var(--primary);margin:6px 0 10px;">
+            ☔ Pluie possible vers ${new Date(rain.time).getHours().toString().padStart(2,'0')}h
+            ${rain.precipProb != null ? '(' + rain.precipProb + '%)' : ''}
+           </div>`
+        : `<div style="font-size:12px;color:var(--text-muted);margin:6px 0 10px;">Pas de pluie forte prévue sous peu</div>`;
+
+      const cards = hourly.slice(0, 16).map(h => {
+        const [em, lab] = weatherCodeInfo(h.code);
+        const hour = new Date(h.time).getHours().toString().padStart(2, '0') + 'h';
+        const t = h.temp != null ? Math.round(h.temp) + '°' : '—';
+        const pp = h.precipProb != null ? h.precipProb + '%' : '—';
+        const w = h.wind != null ? Math.round(h.wind) + ' km/h' : '';
+        const wet = (h.precipProb != null && h.precipProb >= 40) || (h.precipMm != null && h.precipMm >= 0.2);
+        return `<div class="route-card" style="margin-bottom:8px;padding:10px 12px;${wet ? 'border-color:var(--primary);' : ''}">
+          <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;">
+            <div style="font-weight:800;min-width:40px;">${hour}</div>
+            <div style="font-size:22px;">${em}</div>
+            <div style="font-weight:800;font-size:18px;min-width:42px;">${t}</div>
+            <div style="flex:1;font-size:12px;color:var(--text-secondary);">${lab}</div>
+            <div style="font-size:11px;font-weight:700;color:${wet ? 'var(--primary)' : 'var(--text-muted)'};">💧 ${pp}</div>
+          </div>
+          ${w ? `<div style="font-size:11px;color:var(--text-muted);margin-top:4px;">💨 ${w}</div>` : ''}
+        </div>`;
+      }).join('');
+
+      container.innerHTML = `
+        <div style="animation:fadeIn 0.25s ease;padding-bottom:12px;">
+          <div class="route-card" style="margin-bottom:10px;border-color:var(--primary);">
+            <div style="display:flex;align-items:center;gap:12px;">
+              <div style="font-size:40px;">${emoji}</div>
+              <div>
+                <div style="font-size:28px;font-weight:800;">${Math.round(data.temperature)}°</div>
+                <div style="font-size:13px;font-weight:600;">${label}</div>
+                <div style="font-size:11px;color:var(--text-muted);margin-top:2px;">
+                  ${data.place || 'Skåne'} · vent ${data.windspeed != null ? Math.round(data.windspeed) + ' km/h' : '—'}
+                </div>
+              </div>
+            </div>
+            ${rainNote}
+            <div style="font-size:10px;color:var(--text-muted);">Modèle : ${modelLabel} · Open-Meteo</div>
+          </div>
+          <div style="font-size:12px;font-weight:700;margin:4px 0 8px;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.4px;">
+            Prochaines heures
+          </div>
+          ${cards || '<p style="color:var(--text-muted);font-size:13px;">Prévision horaire indisponible</p>'}
+          <div style="font-size:10px;color:var(--text-muted);text-align:center;margin-top:8px;line-height:1.4;">
+            MET Nordic / DMI HARMONIE via Open-Meteo · gratuit
+          </div>
+        </div>`;
+    }
+
+    async function fetchLocalWeather(lat, lng, force) {
+      const la = lat != null ? lat : userLat;
+      const ln = lng != null ? lng : userLng;
+      if (!force && weatherCache.data && (Date.now() - weatherCache.at) < 10 * 60 * 1000) {
+        renderWeatherWidget(weatherCache.data);
+        return weatherCache.data;
+      }
+      // Horaire + actuel ; modèles nordiques en priorité, secours auto
+      const params = new URLSearchParams({
+        latitude: String(la),
+        longitude: String(ln),
+        current_weather: 'true',
+        hourly: 'temperature_2m,apparent_temperature,precipitation_probability,precipitation,weather_code,wind_speed_10m',
+        forecast_hours: '24',
+        timezone: 'Europe/Stockholm',
+        wind_speed_unit: 'kmh',
+        models: 'metno_nordic,dmi_harmonie_arome_europe'
+      });
+      let url = 'https://api.open-meteo.com/v1/forecast?' + params.toString();
+      try {
+        let res = await fetch(url);
+        // Si modèles régionaux refusés → auto
+        if (!res.ok) {
+          params.delete('models');
+          url = 'https://api.open-meteo.com/v1/forecast?' + params.toString();
+          res = await fetch(url);
+        }
+        if (!res.ok) throw new Error('HTTP ' + res.status);
+        const json = await res.json();
+        const cw = json.current_weather || {};
+        // Si current vide, prendre 1ère heure
+        let temperature = cw.temperature;
+        let windspeed = cw.windspeed;
+        let weathercode = cw.weathercode;
+        let winddirection = cw.winddirection;
+        if (temperature == null && json.hourly?.temperature_2m?.length) {
+          temperature = json.hourly.temperature_2m[0];
+          weathercode = json.hourly.weather_code?.[0] ?? 0;
+          windspeed = json.hourly.wind_speed_10m?.[0];
+        }
+        const hourly = parseHourlyForecast(json);
+        const model =
+          (json.hourly_units && json.hourly_units.temperature_2m) ||
+          (Array.isArray(json.model) ? json.model.join(',') : (json.model || 'auto'));
+        const data = {
+          temperature,
+          windspeed,
+          winddirection,
+          weathercode,
+          time: cw.time || (hourly[0] && hourly[0].time),
+          place: weatherPlaceName(la, ln)
+        };
+        weatherCache = {
+          at: Date.now(),
+          data,
+          hourly,
+          model: String(json.model || model || 'metno_nordic|dmi|auto')
+        };
+        renderWeatherWidget(data);
+        return data;
+      } catch (e) {
+        console.warn('Météo Open-Meteo', e);
+        const descEl = document.getElementById('weatherDesc');
+        if (descEl) descEl.textContent = 'Météo indisponible';
+        return null;
+      }
+    }
+
+    async function refreshWeather(showPanel) {
+      const data = await fetchLocalWeather(userLat, userLng, true);
+      if (showPanel) {
+        if (data) renderHourlyWeatherPanel();
+        else showToast('Météo indisponible');
+      }
+      return data;
+    }
+
+    window.refreshWeather = refreshWeather;
+    window.renderHourlyWeatherPanel = renderHourlyWeatherPanel;
 
     function locateUser() {
       if (!navigator.geolocation) {
@@ -3590,7 +4352,7 @@
       el.innerHTML = `
         <div style="font-size:13px;color:var(--text-secondary);margin-bottom:14px;line-height:1.45;">
           Alertes automatiques Skåne (événements, arrêts fermés, travaux, déviations).
-          <br><span style="font-size:11px;color:var(--text-muted);">${liveAlertsStatus.ok ? '✓ Live GTFS-RT Skånetrafiken via Trafiklab' : 'Mode démo — backend + TRAFIKLAB_KEY pour le live'}</span>
+          <br><span style="font-size:11px;color:var(--text-muted);">${liveAlertsStatus.ok ? '✓ Live GTFS-RT Skånetrafiken via Trafiklab' : 'Mode démo — backend et clé TRAFIKLAB pour les données en direct'}</span>
         </div>
         ${list.map(a => `
           <div class="alert-card ${a.type}">
@@ -3640,6 +4402,11 @@
     let navStepIndex = 0;
     let accuracyCircle = null;
     let orientHandler = null;
+    let navPolyline = null;
+    let navRerouting = false;
+    let navLastRerouteAt = 0;
+    const NAV_OFF_ROUTE_M = 70;      // hors tracé → recalcul
+    const NAV_REROUTE_COOLDOWN_MS = 12000; // anti-spam
 
     function navCursorHtml(heading) {
       return `<div class="nav-cursor" style="transform:rotate(${heading}deg)">
@@ -3685,6 +4452,33 @@
       const y = Math.sin(Δλ) * Math.cos(φ2);
       const x = Math.cos(φ1) * Math.sin(φ2) - Math.sin(φ1) * Math.cos(φ2) * Math.cos(Δλ);
       return ((Math.atan2(y, x) * 180 / Math.PI) + 360) % 360;
+    }
+
+    /** Écart d'orientation : >0 = tourner à droite, <0 = gauche (degrés -180..180) */
+    function headingDiff(currentHeading, targetBearing) {
+      return ((targetBearing - currentHeading + 540) % 360) - 180;
+    }
+
+    /** Consigne d'orientation à pied selon la direction face / tracé */
+    function walkOrientationCue(lat, lng) {
+      if (!navCoords || navCoords.length < 2) return null;
+      const near = nearestPointOnRoute(lat, lng, navCoords);
+      const next = navCoords[Math.min(near.index + 3, navCoords.length - 1)];
+      const target = bearingBetween(lat, lng, next[0], next[1]);
+      const diff = headingDiff(navHeading, target);
+      const abs = Math.abs(diff);
+      if (abs < 20) {
+        return { instr: 'Continuez tout droit', icon: '↑', align: true, target, diff };
+      }
+      if (abs > 150) {
+        return { instr: 'Faites demi-tour', icon: '↩', align: false, target, diff };
+      }
+      if (diff > 0) {
+        if (abs > 60) return { instr: 'Tournez à droite', icon: '↱', align: false, target, diff };
+        return { instr: 'Légèrement à droite', icon: '↗', align: false, target, diff };
+      }
+      if (abs > 60) return { instr: 'Tournez à gauche', icon: '↰', align: false, target, diff };
+      return { instr: 'Légèrement à gauche', icon: '↖', align: false, target, diff };
     }
 
     function distanceM(lat1, lng1, lat2, lng2) {
@@ -3764,12 +4558,107 @@
 
     let navTotalDist = 0;
 
+    function ensureNavPolyline(coords, mode) {
+      if (!map || !routeLayer || !coords || coords.length < 2) return;
+      const colors = { bike: '#d97706', bus: '#2563eb', walk: '#16a34a', train: '#7c3aed' };
+      const color = (typeof trafficRouteColor === 'function' && trafficRouteColor(mode)) || colors[mode] || '#3b9ee0';
+      try {
+        if (navPolyline && routeLayer.hasLayer(navPolyline)) {
+          navPolyline.setLatLngs(coords);
+          navPolyline.setStyle({
+            color,
+            weight: 7,
+            opacity: 0.95,
+            dashArray: mode === 'walk' ? '8, 8' : null
+          });
+        } else {
+          if (navPolyline) {
+            try { routeLayer.removeLayer(navPolyline); } catch (_) {}
+          }
+          navPolyline = L.polyline(coords, {
+            color,
+            weight: 7,
+            opacity: 0.95,
+            dashArray: mode === 'walk' ? '8, 8' : null,
+            lineJoin: 'round',
+            lineCap: 'round'
+          }).addTo(routeLayer);
+        }
+        // Destination marker always on top of route layer
+        L.circleMarker([coords[coords.length - 1][0], coords[coords.length - 1][1]], {
+          radius: 9, color: '#ef4444', fillColor: '#ef4444', fillOpacity: 1, weight: 2
+        }).addTo(routeLayer);
+      } catch (e) {
+        console.warn('nav polyline', e);
+      }
+    }
+
+    async function recalculateNavRoute(reason) {
+      if (!navActive || !navDest || navRerouting) return false;
+      if (!isAppOnline()) {
+        showToast('📴 Hors ligne — pas de recalcul, suivez le tracé');
+        setOfflineNavBadge(true);
+        return false;
+      }
+      const now = Date.now();
+      if (now - navLastRerouteAt < NAV_REROUTE_COOLDOWN_MS) return false;
+      navRerouting = true;
+      navLastRerouteAt = now;
+      try {
+        const mode = navDest.mode || 'walk';
+        const profile = mode === 'bike' ? 'bike' : 'foot';
+        showToast(reason === 'off-route' ? 'Recalcul du trajet…' : 'Mise à jour de l\'itinéraire…');
+        const osrm = await fetchOsrmRoute(userLat, userLng, navDest.lat, navDest.lng, profile);
+        let coords;
+        let steps = [];
+        if (osrm && osrm.coords && osrm.coords.length > 1) {
+          coords = osrm.coords;
+          steps = osrm.steps || [];
+        } else {
+          coords = [[userLat, userLng], [navDest.lat, navDest.lng]];
+        }
+        navCoords = coords;
+        let cum = 0;
+        navSteps = (steps || []).map((s, i) => {
+          const o = { ...s, _idx: i, _cumDist: cum };
+          cum += s.distance || 0;
+          return o;
+        });
+        navStepIndex = 0;
+        navTotalDist = 0;
+        for (let i = 0; i < navCoords.length - 1; i++) {
+          navTotalDist += distanceM(navCoords[i][0], navCoords[i][1], navCoords[i + 1][0], navCoords[i + 1][1]);
+        }
+        if (!navTotalDist) navTotalDist = distanceM(userLat, userLng, navDest.lat, navDest.lng);
+        // Redessiner le tracé sans vider toute la carte inutilement
+        if (routeLayer) {
+          routeLayer.clearLayers();
+          navPolyline = null;
+        }
+        ensureNavPolyline(navCoords, mode);
+        if (userMarker) userMarker.setLatLng([userLat, userLng]);
+        setNavCursorIcon(navHeading);
+        updateNavUi(userLat, userLng);
+        showToast('Nouvel itinéraire proposé');
+        return true;
+      } catch (e) {
+        console.warn('recalculateNavRoute', e);
+        showToast('Recalcul impossible — suivez le GPS');
+        return false;
+      } finally {
+        navRerouting = false;
+      }
+    }
+
     function updateNavUi(lat, lng) {
       if (!navActive || !navDest) return;
       const near = nearestPointOnRoute(lat, lng, navCoords);
       const remain = remainingDistance(lat, lng, navCoords, near.index);
       const speed = navDest.mode === 'bike' ? 250 : navDest.mode === 'walk' ? 80 : 120;
-      const etaMin = Math.max(1, Math.round(remain / speed));
+      let etaMin = Math.max(1, Math.round(remain / speed));
+      if (typeof applyTrafficToMinutes === 'function') {
+        etaMin = applyTrafficToMinutes(etaMin, navDest.mode);
+      }
 
       let instr = 'Suivez l\'itinéraire';
       let icon = '↑';
@@ -3780,10 +4669,10 @@
         while (navStepIndex < navSteps.length - 1) {
           const s = navSteps[navStepIndex];
           const stepEnd = (s._cumDist || 0) + (s.distance || 40);
-          const traveled = (navTotalDist || remain + (navTotalDist - remain)) ;
-          // Avancer si on a parcouru la distance de l'étape (approx)
           const fromStart = (navTotalDist || 0) - remain;
-          if (fromStart > stepEnd - 25) {
+          // Seuil plus fin à pied (manœuvres plus fréquentes)
+          const thresh = (navDest.mode === 'walk') ? 18 : 25;
+          if (fromStart > stepEnd - thresh) {
             navStepIndex++;
           } else break;
         }
@@ -3791,18 +4680,31 @@
         instr = stepInstruction(step);
         icon = stepIcon(step);
         street = step.name || '';
-        // Distance jusqu'à la prochaine manœuvre
         const fromStart = Math.max(0, (navTotalDist || 0) - remain);
         nextStepDist = Math.max(0, ((step._cumDist || 0) + (step.distance || 50)) - fromStart);
         if (nextStepDist > remain) nextStepDist = Math.min(remain, step.distance || remain);
       } else if (navCoords.length > near.index + 1) {
-        const next = navCoords[Math.min(near.index + 3, navCoords.length - 1)];
-        const br = bearingBetween(lat, lng, next[0], next[1]);
-        const diff = ((br - navHeading + 540) % 360) - 180;
-        if (Math.abs(diff) < 25) { instr = 'Continuez tout droit'; icon = '↑'; }
-        else if (diff > 0) { instr = 'Orientez-vous à droite'; icon = '↱'; }
-        else { instr = 'Orientez-vous à gauche'; icon = '↰'; }
-        nextStepDist = Math.min(remain, 80);
+        const cue = walkOrientationCue(lat, lng);
+        if (cue) {
+          instr = cue.instr;
+          icon = cue.icon;
+        }
+        nextStepDist = Math.min(remain, navDest.mode === 'walk' ? 50 : 80);
+      }
+
+      // Marche : l'orientation face compte autant que l'étape OSRM
+      if (navDest.mode === 'walk') {
+        const cue = walkOrientationCue(lat, lng);
+        if (cue && !cue.align) {
+          // Priorité à se remettre face au chemin avant la prochaine manœuvre lointaine
+          if (nextStepDist > 35 || !navSteps.length) {
+            instr = cue.instr + (street ? ' — puis ' + street : '');
+            icon = cue.icon;
+          }
+        } else if (cue && cue.align && (!navSteps.length || nextStepDist > 40)) {
+          instr = street ? ('Continuez sur ' + street) : 'Continuez tout droit';
+          icon = '↑';
+        }
       }
 
       const distEl = document.getElementById('navDist');
@@ -3840,7 +4742,8 @@
       }
 
       const dDest = distanceM(lat, lng, navDest.lat, navDest.lng);
-      if (dDest < 35) {
+      const arriveM = navDest.mode === 'walk' ? 22 : 35;
+      if (dDest < arriveM) {
         if (instrEl) instrEl.textContent = 'Vous êtes arrivé !';
         if (iconEl) iconEl.textContent = '🏁';
         showToast('🏁 Destination atteinte');
@@ -3849,26 +4752,55 @@
     }
 
     function onNavPosition(pos) {
+      if (!pos || !pos.coords) return;
+      const acc = pos.coords.accuracy || 50;
+      // Ignorer positions très imprécises pendant la nav
+      if (navActive && acc > 80) {
+        updateGpsDisplay(pos.coords.latitude, pos.coords.longitude, acc, 'gps');
+        return;
+      }
       userLat = pos.coords.latitude;
       userLng = pos.coords.longitude;
       if (userMarker) userMarker.setLatLng([userLat, userLng]);
-      updateGpsDisplay(userLat, userLng, pos.coords.accuracy, 'gps');
+      updateGpsDisplay(userLat, userLng, acc, 'gps');
 
-      if (typeof pos.coords.heading === 'number' && !isNaN(pos.coords.heading) && pos.coords.speed > 0.5) {
+      // Orientation
+      // À pied : la boussole (deviceorientation) prime ; le GPS heading n'est fiable qu'en mouvement
+      const spd = pos.coords.speed != null ? pos.coords.speed : 0;
+      const isWalk = navActive && navDest && navDest.mode === 'walk';
+      if (!isWalk && typeof pos.coords.heading === 'number' && !isNaN(pos.coords.heading) && spd > 0.4) {
         setNavHeading(pos.coords.heading);
-      } else if (navCoords.length > 1) {
-        const near = nearestPointOnRoute(userLat, userLng, navCoords);
-        const next = navCoords[Math.min(near.index + 2, navCoords.length - 1)];
+      } else if (isWalk && typeof pos.coords.heading === 'number' && !isNaN(pos.coords.heading) && spd > 0.8) {
+        // Marche rapide : mélange léger GPS
+        setNavHeading(pos.coords.heading);
+      } else if (navActive && navCoords.length > 1 && !orientHandler) {
+        // Pas de boussole dispo → viser le tracé
+        const nearH = nearestPointOnRoute(userLat, userLng, navCoords);
+        const next = navCoords[Math.min(nearH.index + 2, navCoords.length - 1)];
         setNavHeading(bearingBetween(userLat, userLng, next[0], next[1]));
       }
+      if (navActive) setNavCursorIcon(navHeading);
 
       if (accuracyCircle) {
         accuracyCircle.setLatLng([userLat, userLng]);
-        accuracyCircle.setRadius(Math.min(80, Math.max(12, pos.coords.accuracy || 25)));
+        accuracyCircle.setRadius(Math.min(80, Math.max(12, acc)));
       }
 
       if (navActive) {
-        // Carte centrée + orientation (bearing)
+        // Garder / restaurer le tracé s'il a disparu
+        if (!navPolyline || !routeLayer || !routeLayer.hasLayer(navPolyline)) {
+          ensureNavPolyline(navCoords, (navDest && navDest.mode) || 'walk');
+        }
+
+        // Hors tracé → recalcul d'un nouveau chemin
+        if (navCoords.length > 1 && !navRerouting) {
+          const near = nearestPointOnRoute(userLat, userLng, navCoords);
+          const offM = (navDest && navDest.mode === 'walk') ? 45 : NAV_OFF_ROUTE_M;
+          if (near.dist > offM) {
+            recalculateNavRoute('off-route');
+          }
+        }
+
         map.setView([userLat, userLng], Math.max(map.getZoom(), 17), { animate: true });
         updateNavUi(userLat, userLng);
       }
@@ -3877,19 +4809,38 @@
     function startOrientation() {
       if (orientHandler) return;
       orientHandler = (e) => {
-        // iOS webkitCompassHeading, sinon alpha
         let h = null;
-        if (typeof e.webkitCompassHeading === 'number') h = e.webkitCompassHeading;
-        else if (typeof e.alpha === 'number') h = 360 - e.alpha;
-        if (h != null) setNavHeading(h);
+        // iOS : webkitCompassHeading = nord magnétique (0 = nord)
+        if (typeof e.webkitCompassHeading === 'number' && !isNaN(e.webkitCompassHeading)) {
+          h = e.webkitCompassHeading;
+        } else if (typeof e.alpha === 'number' && !isNaN(e.alpha)) {
+          // Android / standard : alpha 0 = nord (selon device) — conversion courante
+          h = (360 - e.alpha) % 360;
+          if (typeof e.absolute === 'boolean' && e.absolute && typeof e.alpha === 'number') {
+            h = (360 - e.alpha) % 360;
+          }
+        }
+        if (h != null && !isNaN(h)) {
+          setNavHeading(h);
+          // Rafraîchir consigne marche dès que l'utilisateur tourne le téléphone
+          if (navActive && navDest && navDest.mode === 'walk') {
+            updateNavUi(userLat, userLng);
+          }
+        }
       };
       const tryListen = () => {
+        window.addEventListener('deviceorientationabsolute', orientHandler, true);
         window.addEventListener('deviceorientation', orientHandler, true);
       };
       if (typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission === 'function') {
         DeviceOrientationEvent.requestPermission().then(s => {
-          if (s === 'granted') tryListen();
-        }).catch(() => {});
+          if (s === 'granted') {
+            tryListen();
+            showToast('🚶 Boussole activée — orientez le téléphone');
+          } else {
+            showToast('Autorisez la boussole pour le guidage à pied');
+          }
+        }).catch(() => { tryListen(); });
       } else {
         tryListen();
       }
@@ -3898,8 +4849,119 @@
     function stopOrientation() {
       if (orientHandler) {
         window.removeEventListener('deviceorientation', orientHandler, true);
+        window.removeEventListener('deviceorientationabsolute', orientHandler, true);
         orientHandler = null;
       }
+    }
+
+
+    // ========== GUIDAGE HORS LIGNE (niveau 1) ==========
+    // Une fois le trajet calculé en ligne, GPS + boussole + consignes
+    // continuent même sans réseau. Pas de nouveau calcul OSRM hors ligne.
+    const OFFLINE_NAV_KEY = 'vagvis-offline-nav';
+
+    function isAppOnline() {
+      return typeof navigator.onLine === 'boolean' ? navigator.onLine : true;
+    }
+
+    function saveOfflineNavState() {
+      if (!navActive || !navDest || !navCoords || navCoords.length < 2) return;
+      try {
+        const payload = {
+          savedAt: Date.now(),
+          dest: navDest,
+          coords: navCoords,
+          steps: navSteps,
+          totalDist: navTotalDist,
+          stepIndex: navStepIndex
+        };
+        localStorage.setItem(OFFLINE_NAV_KEY, JSON.stringify(payload));
+      } catch (e) {
+        console.warn('saveOfflineNav', e);
+      }
+    }
+
+    function clearOfflineNavState() {
+      try { localStorage.removeItem(OFFLINE_NAV_KEY); } catch (_) {}
+    }
+
+    function loadOfflineNavState() {
+      try {
+        const raw = localStorage.getItem(OFFLINE_NAV_KEY);
+        if (!raw) return null;
+        const data = JSON.parse(raw);
+        // Expire après 6 h
+        if (!data || !data.savedAt || Date.now() - data.savedAt > 6 * 60 * 60 * 1000) {
+          clearOfflineNavState();
+          return null;
+        }
+        if (!data.coords || data.coords.length < 2 || !data.dest) return null;
+        return data;
+      } catch (_) {
+        return null;
+      }
+    }
+
+    function setOfflineNavBadge(offline) {
+      const modeEl = document.getElementById('navModeLabel');
+      if (!modeEl || !navActive) return;
+      const base = navDest?.mode === 'bike' ? '🚲 Vélo' : navDest?.mode === 'walk' ? '🚶 Marche' : '🚌 Trajet';
+      modeEl.textContent = offline ? (base + ' · hors ligne') : base;
+      const banner = document.getElementById('navBanner');
+      if (banner) {
+        banner.style.borderColor = offline ? 'rgba(255,180,50,0.6)' : '';
+      }
+    }
+
+    function resumeOfflineNavigation(data) {
+      if (!data || !navigator.geolocation) return false;
+      navCoords = data.coords;
+      navSteps = data.steps || [];
+      navTotalDist = data.totalDist || 0;
+      navStepIndex = data.stepIndex || 0;
+      navDest = data.dest;
+      navActive = true;
+      navRerouting = false;
+      ensureNavPolyline(navCoords, navDest.mode || 'walk');
+      if (navCoords.length > 1) {
+        const ni = Math.min(2, navCoords.length - 1);
+        setNavHeading(bearingBetween(userLat, userLng, navCoords[ni][0], navCoords[ni][1]));
+      }
+      setNavCursorIcon(navHeading);
+      document.getElementById('navBanner')?.classList.add('active');
+      setOfflineNavBadge(!isAppOnline());
+      document.getElementById('navInstr').textContent =
+        navSteps.length ? stepInstruction(navSteps[Math.min(navStepIndex, navSteps.length - 1)]) : 'Suivez l\'itinéraire (hors ligne)';
+      updateNavUi(userLat, userLng);
+      if (navWatchId != null) navigator.geolocation.clearWatch(navWatchId);
+      navWatchId = navigator.geolocation.watchPosition(
+        onNavPosition,
+        () => showToast('Signal GPS faible'),
+        { enableHighAccuracy: true, maximumAge: 1000, timeout: 15000 }
+      );
+      startOrientation();
+      collapseSheet();
+      if (map) map.setView([userLat, userLng], 17, { animate: true });
+      showToast(isAppOnline()
+        ? 'Reprise du guidage'
+        : '📴 Guidage hors ligne — trajet mémorisé');
+      return true;
+    }
+
+    function initOfflineNavListeners() {
+      window.addEventListener('offline', () => {
+        if (navActive) {
+          saveOfflineNavState();
+          setOfflineNavBadge(true);
+          showToast('📴 Réseau perdu — guidage continue hors ligne');
+        }
+      });
+      window.addEventListener('online', () => {
+        if (navActive) {
+          setOfflineNavBadge(false);
+          showToast('🌐 Réseau rétabli');
+        }
+      });
     }
 
     async function startNavigation(toLat, toLng, mode, name) {
@@ -3907,6 +4969,8 @@
         showToast('GPS requis pour la navigation');
         return;
       }
+      navPolyline = null;
+      navRerouting = false;
       // Calculer / rafraîchir l'itinéraire
       const result = await drawCalculatedRoute(toLat, toLng, mode || 'walk', 15);
       navCoords = (result && result.coords) ? result.coords : [[userLat, userLng], [toLat, toLng]];
@@ -3927,7 +4991,17 @@
       navDest = { lat: toLat, lng: toLng, name: name || 'Destination', mode: mode || 'walk' };
       try { autoAlertForDestination(name || 'Destination', toLat, toLng); } catch (_) {}
       navActive = true;
+      navRerouting = false;
+      navLastRerouteAt = 0;
 
+      // Tracé de navigation stable (ne disparaît pas)
+      ensureNavPolyline(navCoords, mode || 'walk');
+
+      // Orientation initiale vers le tracé
+      if (navCoords.length > 1) {
+        const ni = Math.min(2, navCoords.length - 1);
+        setNavHeading(bearingBetween(userLat, userLng, navCoords[ni][0], navCoords[ni][1]));
+      }
       setNavCursorIcon(navHeading);
       if (accuracyCircle && map) map.removeLayer(accuracyCircle);
       accuracyCircle = L.circle([userLat, userLng], {
@@ -3937,26 +5011,39 @@
       document.getElementById('navBanner')?.classList.add('active');
       document.getElementById('navModeLabel').textContent = mode === 'bike' ? 'Vélo' : mode === 'walk' ? 'Marche' : 'Navigation';
       document.getElementById('navInstr').textContent = navSteps.length ? stepInstruction(navSteps[0]) : 'Suivez l\'itinéraire';
+      updateNavUi(userLat, userLng);
 
       if (navWatchId != null) navigator.geolocation.clearWatch(navWatchId);
       navWatchId = navigator.geolocation.watchPosition(
         onNavPosition,
-        () => showToast('Signal GPS faible — déplace-toi ou sors à l\'extérieur'),
-        { enableHighAccuracy: true, maximumAge: 800, timeout: 12000 }
+        () => showToast('Signal GPS faible — sortez à l\'extérieur'),
+        { enableHighAccuracy: true, maximumAge: 1000, timeout: 15000 }
       );
       startOrientation();
       collapseSheet();
-      showToast('Navigation démarrée — suivez le curseur');
+      if (map) map.setView([userLat, userLng], 17, { animate: true });
+      saveOfflineNavState();
+      setOfflineNavBadge(!isAppOnline());
+      showToast((mode === 'walk')
+        ? (isAppOnline()
+            ? '🚶 Navigation à pied — suivez le curseur et la boussole'
+            : '🚶 Guidage hors ligne (trajet mémorisé)')
+        : (isAppOnline()
+            ? 'Navigation démarrée — suivez le curseur'
+            : '📴 Guidage hors ligne — trajet mémorisé'));
     }
 
     function stopNavigation() {
       navActive = false;
+      navRerouting = false;
+      clearOfflineNavState();
       document.getElementById('navManeuverCard')?.classList.remove('active');
       const bar = document.getElementById('navProgressBar');
       if (bar) bar.style.width = '0%';
       navDest = null;
       navCoords = [];
       navSteps = [];
+      navPolyline = null;
       if (navWatchId != null) {
         navigator.geolocation.clearWatch(navWatchId);
         navWatchId = null;
@@ -4011,8 +5098,14 @@
       POIS.forEach(p => {
         const emojiMap = { park: '🌳', beach: '🏖️', restaurant: '🍽️', school: '🎓', leisure: '🎯', hotel: '🏨', stadium: '🏟️', busstop: '🚏', trainstop: '🚉', metro: '🚇' };
         items.push({
-          name: p.name, type: p.type, label: p.desc || p.type, emoji: emojiMap[p.type] || '📍',
-          lat: p.lat, lng: p.lng, action: 'poi', id: p.id
+          name: p.name,
+          type: p.type,
+          label: p.address || p.desc || p.type,
+          emoji: emojiMap[p.type] || '📍',
+          lat: p.lat, lng: p.lng, action: 'poi', id: p.id,
+          address: p.address || '',
+          aliases: p.aliases || [],
+          searchText: [p.name, p.address, p.desc, ...(p.aliases || [])].filter(Boolean).join(' ')
         });
       });
       // Micro
@@ -4031,7 +5124,7 @@
       const dropdown = document.getElementById('searchDropdown');
       if (!dropdown) return;
       if (!results.length) {
-        dropdown.innerHTML = `<div style="padding:14px 16px;font-size:13px;color:var(--text-muted);">Aucun lieu pour « ${query} » — essayez une adresse (ex. Stortorget 1 Malmö)</div>`;
+        dropdown.innerHTML = `<div style="padding:14px 16px;font-size:13px;color:var(--text-muted);">Aucun lieu pour « ${query} » — essayez une adresse Skåne (ex. Spårvägsgatan 9 Malmö, Stora Södergatan Lund)</div>`;
         dropdown.style.display = 'block';
         return;
       }
@@ -4053,42 +5146,162 @@
       dropdown.style.display = 'block';
     }
 
+
+    /** Photon (Komoot) — autocomplétion gratuite OSM, sans clé. Fair-use. */
+    async function geocodePhoton(query) {
+      const q = (query || '').trim();
+      if (q.length < 2) return [];
+      // Bbox Skåne approx : minLon,minLat,maxLon,maxLat
+      const bbox = '12.5,55.3,14.55,56.35';
+      const url = 'https://photon.komoot.io/api/?' + new URLSearchParams({
+        q: q,
+        limit: '8',
+        lang: 'sv',
+        bbox: bbox,
+        lat: String(typeof userLat === 'number' ? userLat : 55.605),
+        lon: String(typeof userLng === 'number' ? userLng : 13.004)
+      }).toString();
+      try {
+        const res = await fetch(url, {
+          headers: { 'Accept': 'application/json' }
+        });
+        if (!res.ok) return [];
+        const data = await res.json();
+        const features = data.features || [];
+        return features.map((f, i) => {
+          const p = f.properties || {};
+          const coords = (f.geometry && f.geometry.coordinates) || [0, 0];
+          const lng = coords[0];
+          const lat = coords[1];
+          const parts = [p.name, p.street, p.housenumber, p.city || p.town || p.village || p.county]
+            .filter(Boolean);
+          // Éviter doublons name/street
+          let name = p.name || '';
+          if (p.housenumber && p.street) {
+            name = `${p.street} ${p.housenumber}` + (p.city || p.town ? ', ' + (p.city || p.town) : '');
+          } else if (p.street) {
+            name = p.street + (p.city || p.town ? ', ' + (p.city || p.town) : '');
+          } else if (!name) {
+            name = parts.slice(0, 3).join(', ') || 'Lieu';
+          } else if (p.city || p.town) {
+            name = name + ', ' + (p.city || p.town);
+          }
+          const typeLabel = p.osm_value || p.type || p.osm_key || 'lieu';
+          let score = 10;
+          if (p.housenumber) score += 40;
+          if (p.street) score += 15;
+          if (/school|college|university|bus_stop|station|restaurant|cafe/.test(String(typeLabel))) score += 20;
+          if (/malm|lund|helsingborg|trelleborg|ystad|kristianstad|skåne/i.test(name + ' ' + (p.state || ''))) score += 5;
+          return {
+            name,
+            fullName: [p.name, p.street, p.housenumber, p.postcode, p.city || p.town, p.state, p.country]
+              .filter(Boolean).join(', '),
+            type: 'address',
+            label: p.housenumber ? 'Adresse' : (typeLabel.replace(/_/g, ' ')),
+            emoji: '📍',
+            lat,
+            lng,
+            action: 'address',
+            id: 'photon_' + (p.osm_id || i),
+            houseNumber: p.housenumber || null,
+            road: p.street || null,
+            source: 'photon',
+            score
+          };
+        }).sort((a, b) => b.score - a.score);
+      } catch (e) {
+        console.warn('Photon indisponible', e);
+        return [];
+      }
+    }
+
+
     // Noms de clubs / lieux que la carte ne connaît pas sous ce nom → on cherche leur vrai emplacement
     const PLACE_ALIASES = [
       { re: /\b(bk\s*)?olympic\b/i, queries: ['Lindängens IP, Malmö', 'Tenorgatan, Malmö'], label: 'BK Olympic · Lindängens IP' }
     ];
-    async function nominatimSearch(query) {
-      const url = `https://nominatim.openstreetmap.org/search?format=json&limit=5&countrycodes=se&viewbox=12.5,55.3,14.6,56.4&bounded=1&q=${encodeURIComponent(query)}`;
-      const res = await fetch(url, {
-        headers: { 'Accept': 'application/json', 'Accept-Language': 'fr,sv,en' }
-      });
-      if (!res.ok) return [];
-      return (await res.json()) || [];
-    }
-    async function geocodeAddress(query) {
-      // Nominatim OpenStreetMap — gratuit, limité à Skåne / Suède
-      try {
-        const alias = PLACE_ALIASES.find(a => a.re.test(query));
-        let data = [];
-        if (alias) {
-          for (const q of alias.queries) {
-            data = await nominatimSearch(q);
-            if (data.length) break;
+    async function aliasGeocode(query) {
+      const alias = PLACE_ALIASES.find(a => a.re.test(query));
+      if (!alias) return [];
+      for (const q of alias.queries) {
+        try {
+          const res = await fetch(`https://nominatim.openstreetmap.org/search?format=json&limit=5&countrycodes=se&viewbox=12.5,55.3,14.6,56.4&bounded=1&q=${encodeURIComponent(q)}`, { headers: { 'Accept': 'application/json', 'Accept-Language': 'fr,sv,en' } });
+          if (!res.ok) continue;
+          const data = (await res.json()) || [];
+          if (data.length) {
+            const item = data[0];
+            return [{
+              name: alias.label + ', ' + item.display_name.split(',').slice(0, 2).join(',').trim(),
+              type: 'address', label: item.type || 'Lieu', emoji: '📍',
+              lat: parseFloat(item.lat), lng: parseFloat(item.lon),
+              action: 'address', id: 'alias_' + item.place_id
+            }];
           }
-          if (data.length) data[0].display_name = alias.label + ', ' + data[0].display_name;
-        } else {
-          data = await nominatimSearch(query);
-        }
-        return (data || []).map(item => ({
-          name: item.display_name.split(',').slice(0, 3).join(',').trim(),
-          type: 'address',
-          label: item.type || 'Adresse',
-          emoji: '📍',
-          lat: parseFloat(item.lat),
-          lng: parseFloat(item.lon),
-          action: 'address',
-          id: 'addr_' + item.place_id
-        }));
+        } catch (_) {}
+      }
+      return [];
+    }
+
+    async function geocodeAddress(query) {
+      // Nominatim OpenStreetMap — adresses précises Skåne / Suède
+      const q = (query || '').trim();
+      if (!q) return [];
+      const aliasRes = await aliasGeocode(q);
+      if (aliasRes.length) return aliasRes;
+      // Préférer une requête « rue numéro, ville »
+      let searchQ = q;
+      if (!/malm[oö]|lund|helsingborg|trelleborg|ystad|kristianstad|landskrona|hässleholm|angelholm|ängelholm|skåne|skane|sweden|sverige/i.test(q)) {
+        // Recherche régionale Skåne (pas seulement Malmö)
+        searchQ = q + ', Skåne, Sweden';
+      } else if (!/sweden|sverige/i.test(q)) {
+        searchQ = q + ', Sweden';
+      }
+      const base = 'https://nominatim.openstreetmap.org/search?format=json&addressdetails=1&limit=8&countrycodes=se';
+      const url = `${base}&viewbox=12.5,55.3,14.6,56.4&bounded=1&q=${encodeURIComponent(searchQ)}`;
+      try {
+        const res = await fetch(url, {
+          headers: {
+            'Accept': 'application/json',
+            'Accept-Language': 'sv,fr,en',
+            'User-Agent': 'VagVis-Skane-Nav/1.0 (educational; contact local)'
+          }
+        });
+        if (!res.ok) return [];
+        const data = await res.json();
+        const scored = (data || []).map(item => {
+          const ad = item.address || {};
+          const road = ad.road || ad.pedestrian || ad.footway || '';
+          const num = ad.house_number || '';
+          const city = ad.city || ad.town || ad.municipality || ad.suburb || '';
+          const short = [road && num ? `${road} ${num}` : road, city].filter(Boolean).join(', ')
+            || item.display_name.split(',').slice(0, 3).join(',').trim();
+          // Score : numéro de rue exact > bâtiment > rue > autre
+          let score = 0;
+          const cls = (item.class || '') + ' ' + (item.type || '');
+          if (num) score += 50;
+          if (/house|building|residential|yes/.test(cls)) score += 30;
+          if (/school|college|university|amenity/.test(cls)) score += 25;
+          if (road) score += 10;
+          if (/malm|lund|helsingborg|trelleborg|ystad|kristianstad|landskrona|hässleholm|skåne/i.test(item.display_name)) score += 5;
+          // Bonus si la requête contient le numéro trouvé
+          const qn = q.match(/\b(\d+)\b/);
+          if (qn && num && qn[1] === num) score += 40;
+          return {
+            name: short,
+            fullName: item.display_name,
+            type: 'address',
+            label: num ? 'Adresse exacte' : (item.type || 'Adresse'),
+            emoji: '📍',
+            lat: parseFloat(item.lat),
+            lng: parseFloat(item.lon),
+            action: 'address',
+            id: 'addr_' + item.place_id,
+            houseNumber: num || null,
+            road: road || null,
+            score
+          };
+        }).sort((a, b) => b.score - a.score);
+        return scored;
       } catch (e) {
         console.warn('Géocodage indisponible', e);
         return [];
@@ -4143,7 +5356,7 @@
       // POI local
       const ql = q.toLowerCase();
       const poi = (typeof POIS !== 'undefined' ? POIS : []).find(p =>
-        p.name.toLowerCase().includes(ql) || (p.desc && p.desc.toLowerCase().includes(ql))
+        poiMatchesQuery(p, ql) || (p.desc && p.desc.toLowerCase().includes(ql))
       );
       if (poi) return { name: poi.name, lat: poi.lat, lng: poi.lng };
       // Villes Skåne
@@ -4157,7 +5370,9 @@
       );
       if (micro) return { name: micro.name, lat: micro.lat, lng: micro.lng };
       // Nominatim (gratuit, sans clé)
-      const addresses = await geocodeAddress(q + (/malmö|lund|skåne|trelleborg|helsingborg|köpenhamn|copenhagen/i.test(q) ? '' : ' Skåne'));
+      const addresses = await geocodeAddress(
+        /malm[oö]|lund|helsingborg|trelleborg|ystad|kristianstad|skåne|skane|köpenhamn|copenhagen|sweden/i.test(q) ? q : (q + ', Skåne')
+      );
       if (addresses.length) {
         return { name: addresses[0].name, lat: addresses[0].lat, lng: addresses[0].lng };
       }
@@ -4180,7 +5395,7 @@
       const fromQ = (fromEl?.value || '').trim();
       const toQ = (toEl?.value || '').trim() || (document.getElementById('searchInput')?.value || '').trim();
       if (!toQ) {
-        showToast('Indique une destination');
+        showToast('Indiquez une destination');
         toEl?.focus();
         return;
       }
@@ -4222,6 +5437,7 @@
 
       const dist = haversine(startLat, startLng, endLat, endLng);
       const _est = estimateSkaneTimes(dist);
+      const _bus = suggestBusLine(to.name || '', to.lat, to.lng);
       const walkMin = _est.walk;
       const bikeMin = _est.bike;
       const busMin = _est.bus;
@@ -4257,6 +5473,24 @@
       const wKm = walkInfo ? (walkInfo.distanceM / 1000) : dist;
       const bKm = bikeInfo ? (bikeInfo.distanceM / 1000) : dist;
 
+      // Transports en commun : ResRobot si backend configuré
+      let transitHtml = '';
+      let transitNote = 'Bus/train : estimation locale — configurez le backend Trafiklab pour le live.';
+      try {
+        const rr = await fetchResrobotRoutes(endLat, endLng);
+        if (rr && rr.ok && rr.routes && rr.routes.length) {
+          transitHtml = rr.routes.slice(0, 3).map((r, i) => formatResrobotRouteCard(r, i)).join('');
+          transitNote = 'Itinéraires Skånetrafiken via ResRobot / Trafiklab (live).';
+          showToast('Skånetrafiken : ' + rr.routes.length + ' trajet(s)');
+        } else if (rr && rr.code === 'NO_BACKEND') {
+          transitNote = 'Backend non configuré (Réglages) — estimation ' + _bus.line + '.';
+        } else if (rr && !rr.ok) {
+          transitNote = apiErrorMessage(rr) + ' — estimation ' + _bus.line + '.';
+        }
+      } catch (e) {
+        transitNote = 'TC indisponible — estimation ' + _bus.line + '.';
+      }
+
       if (container) {
         container.innerHTML = `
           <div style="animation:fadeIn 0.3s ease;">
@@ -4264,7 +5498,8 @@
               <span style="color:#22c55e;font-weight:700;">●</span> ${from.name.split(',')[0]}<br>
               <span style="color:#ef4444;font-weight:700;">●</span> ${to.name.split(',')[0]}
             </div>
-            <div style="font-size:12px;font-weight:700;color:var(--text-muted);margin-bottom:10px;text-transform:uppercase;letter-spacing:0.4px;">Options (sans clé API)</div>
+            ${transitHtml ? `<div style="font-size:12px;font-weight:700;color:var(--text-muted);margin-bottom:10px;text-transform:uppercase;letter-spacing:0.4px;">Transports en commun</div>${transitHtml}` : ''}
+            <div style="font-size:12px;font-weight:700;color:var(--text-muted);margin:12px 0 10px;text-transform:uppercase;letter-spacing:0.4px;">Marche · Vélo · Estimation bus</div>
 
             <div class="route-card" onclick="drawCalculatedRoute(${endLat},${endLng},'walk',${wMin})">
               <div class="route-top"><div class="route-duration">${wMin} min</div><div class="route-price">Gratuit</div></div>
@@ -4278,13 +5513,13 @@
             </div>
             <div class="route-card" onclick="currentMode='bus';searchAndRoute('${to.name.split(',')[0].replace(/'/g,"\\'")}');">
               <div class="route-top"><div class="route-duration">~${busMin} min</div><div class="route-price">~29–39 kr</div></div>
-              <div style="font-size:12px;font-weight:600;color:var(--primary);margin:-4px 0 8px;">dont ~${_est.busWait} min d'attente</div>
-              <div class="route-modes"><span class="mode-pill bus"><i class="fas fa-bus"></i> Bus / train</span></div>
+              <div style="font-size:12px;font-weight:600;color:var(--primary);margin:-4px 0 8px;">dont ~${_est.busWait} min d'attente · ${_bus.line}</div>
+              <div class="route-modes"><span class="mode-pill bus"><i class="fas fa-bus"></i> ${_bus.line}</span></div>
               <div class="route-meta"><span>Skånetrafiken (estim.)</span></div>
             </div>
             <div style="font-size:11px;color:var(--text-muted);margin-top:8px;line-height:1.4;">
               Marche & vélo : tracé réel (OSRM).<br>
-              Bus/train : estimation — horaires officiels avec clé Trafiklab.
+              ${transitNote}
             </div>
           </div>`;
       }
@@ -4309,34 +5544,43 @@
       const index = buildSearchIndex();
       const ql = q.toLowerCase();
       let results = index.filter(item => {
-        const hay = (item.name + ' ' + (item.label || '') + ' ' + (item.type || '')).toLowerCase();
-        if (hay.includes(ql)) return true;
-        // Raccourcis
+        const hay = normalizeSearch(item.searchText || (item.name + ' ' + (item.label || '') + ' ' + (item.address || '') + ' ' + (item.type || '')));
+        const nq = normalizeSearch(ql);
+        if (hay.includes(nq) || nq.split(' ').filter(w => w.length >= 3).every(w => hay.includes(w))) return true;
         if ((ql === 'métro' || ql === 'metro' || ql.startsWith('métro ') || ql.startsWith('metro ')) && item.type === 'metro') return true;
         if ((ql === 'gare' || ql === 'train') && item.type === 'trainstop') return true;
+        // POI via aliases / address
+        if (item.action === 'poi') {
+          const poi = POIS.find(p => p.id === item.id);
+          if (poi && poiMatchesQuery(poi, q)) return true;
+        }
         return false;
       }).slice(0, 6);
 
       renderSearchDropdown(results, q);
 
-      // Adresses (Nominatim) — discrètement, max 6 résultats au total
+      // Autocomplétion adresses : Photon (gratuit) puis Nominatim en secours
       clearTimeout(searchDebounce);
-      if (q.length >= 3) {
+      if (q.length >= 2) {
         searchDebounce = setTimeout(async () => {
-          const addresses = await geocodeAddress(
-            q + (ql.includes('malmö') || ql.includes('malmo') || ql.includes('lund') || ql.includes('skåne') ? '' : ' Skåne')
-          );
+          let addresses = await aliasGeocode(q);
+          if (!addresses.length) addresses = await geocodePhoton(q);
+          if (!addresses.length && q.length >= 3) {
+            addresses = await geocodeAddress(
+              /malm[oö]|lund|helsingborg|trelleborg|ystad|kristianstad|skåne|skane|sweden/i.test(ql) ? q : (q + ', Skåne')
+            );
+          }
           const merged = [...results];
           addresses.forEach(a => {
-            if (merged.length >= 6) return;
-            if (!merged.some(m => Math.abs(m.lat - a.lat) < 0.0003 && Math.abs(m.lng - a.lng) < 0.0003)) {
+            if (merged.length >= 8) return;
+            if (!merged.some(m => m.lat && a.lat && Math.abs(m.lat - a.lat) < 0.00025 && Math.abs(m.lng - a.lng) < 0.00025)) {
               merged.push(a);
             }
           });
           if (document.getElementById('searchInput')?.value.trim() === q) {
-            renderSearchDropdown(merged.slice(0, 6), q);
+            renderSearchDropdown(merged.slice(0, 8), q);
           }
-        }, 450);
+        }, 280);
       }
     }
 
@@ -4344,12 +5588,17 @@
       hideSearchDropdown();
       const input = document.getElementById('searchInput');
       if (input) input.value = name;
-      map.setView([lat, lng], 16);
+      // Zoom adresse exacte (niveau rue)
+      map.setView([lat, lng], 18);
       routeLayer.clearLayers();
       L.circleMarker([lat, lng], {
-        radius: 12, color: '#5eb6f0', fillColor: '#5eb6f0', fillOpacity: 0.35, weight: 3
+        radius: 14, color: '#2563eb', fillColor: '#3b82f6', fillOpacity: 0.4, weight: 3
+      }).addTo(routeLayer);
+      L.circleMarker([lat, lng], {
+        radius: 5, color: '#fff', fillColor: '#1d4ed8', fillOpacity: 1, weight: 2
       }).addTo(routeLayer);
       L.marker([lat, lng]).addTo(routeLayer);
+      showToast('📍 ' + (name.split(',')[0] || name));
 
       expandSheet();
       document.getElementById('tabRoutes')?.click();
@@ -4375,6 +5624,7 @@
           <div class="route-meta"><span>${distLabel} · rythme urbain</span></div></div>`);
       }
       if (mode === 'all' || mode === 'bus') {
+        const busInfo = suggestBusLine(name, lat, lng);
         cards.push(`<div class="route-card" onclick="goToAddress(${lat},${lng},'bus',${busMin})">
           <div class="route-top"><div class="route-duration">${busMin} min</div><div class="route-price">25–34 kr</div></div>
           <div style="font-size:12px;font-weight:600;color:var(--primary);margin:-4px 0 8px;">estimation · dont ~${est.busWait} min d'attente</div>
@@ -4525,10 +5775,11 @@
 
       // 1) Recherche dans les POIs (Komvux, parcs, restos, loisirs…)
       const poiMatch = POIS.find(p =>
-        p.name.toLowerCase().includes(q) ||
-        (p.desc && p.desc.toLowerCase().includes(q)) ||
+        poiMatchesQuery(p, q) ||
         p.type === q ||
-        (q.includes('komvux') && p.type === 'school')
+        (q.includes('komvux') && p.type === 'school') ||
+        (q.includes('olympic') && p.id === 'bk_olympic') ||
+        ((q.includes('stad') || q.includes('stade')) && p.type === 'stadium')
       );
       if (poiMatch) {
         openPoi(poiMatch);
@@ -4550,7 +5801,9 @@
 
       // 3) Adresse / lieu libre via Nominatim (gratuit, sans clé)
       const addresses = await geocodeAddress(
-        destination + (/malmö|lund|skåne|trelleborg|helsingborg|köpenhamn|copenhagen|copenhague/i.test(destination) ? '' : ' Skåne')
+        /malm[oö]|lund|helsingborg|trelleborg|ystad|kristianstad|landskrona|hässleholm|skåne|skane|köpenhamn|copenhagen|copenhague|sweden/i.test(destination)
+          ? destination
+          : (destination + ', Skåne')
       );
       if (addresses.length) {
         openAddress(addresses[0].name, addresses[0].lat, addresses[0].lng);
@@ -4844,22 +6097,51 @@ function renderRoutes(routes) {
         return;
       }
 
-      container.innerHTML = routes.map((r, i) => `
+      const hasTransit = routes.some(r => (r.modes || []).some(m => m === 'bus' || m === 'train'));
+      const header = hasTransit
+        ? `<div style="font-size:12px;font-weight:700;color:var(--text-muted);margin:0 0 10px;letter-spacing:0.3px;">TRANSPORTS PUBLICS · SKÅNETRAFIKEN</div>`
+        : '';
+
+      container.innerHTML = header + routes.map((r, i) => {
+        const isTransit = (r.modes || []).some(m => m === 'bus' || m === 'train');
+        const linePills = (r.pills || []).filter(p => p.type === 'bus' || p.type === 'train');
+        const lineLabel = linePills.map(p => p.label).join(' → ') || '';
+        // Résumé étape transport (ex. Bus 8 · départ dans X min)
+        let transitHint = '';
+        if (isTransit && r.steps && r.steps.length) {
+          const ts = r.steps.find(s => s.type === 'bus' || s.type === 'train');
+          if (ts) {
+            const title = ts.title || ts.instruction || '';
+            const desc = (ts.desc || '').slice(0, 90);
+            transitHint = `<div style="font-size:12px;color:var(--text-secondary);margin-top:6px;line-height:1.35;">${title}${desc ? ' · ' + desc : ''}</div>`;
+          }
+        }
+        if (r.departure) {
+          transitHint += `<div style="font-size:12px;font-weight:600;color:var(--primary);margin-top:4px;">Départ ${r.departure}${r.arrival ? ' → ' + r.arrival : ''}</div>`;
+        }
+        return `
         <div class="route-card" data-id="${r.id}" onclick="selectRoute(${r.id})"
              style="animation: slideUp 0.4s cubic-bezier(0.22, 1, 0.36, 1) forwards; animation-delay: ${i * 0.06}s; opacity: 0;">
           <div class="route-top">
             <div class="route-duration">${formatDuration(r.duration)}</div>
-            <div class="route-price">${r.price}</div>
+            <div class="route-price">${r.price || ''}</div>
           </div>
           <div class="route-modes">
-            ${r.pills.map(p => `<span class="mode-pill ${p.type}">${getIcon(p.type)} ${p.label}</span>`).join('')}
+            ${(r.pills || []).map(p => `<span class="mode-pill ${p.type}">${getIcon(p.type)} ${p.label}</span>`).join('')}
           </div>
+          ${lineLabel && isTransit ? `<div style="font-size:13px;font-weight:700;margin-top:6px;color:var(--text);">${lineLabel}</div>` : ''}
+          ${transitHint}
           <div class="route-meta">
-            <span><i class="fas fa-walking"></i> ${r.walking} min</span>
-            <span><i class="fas fa-exchange-alt"></i> ${r.transfers} corr.</span>
+            <span><i class="fas fa-walking"></i> ${r.walking != null ? r.walking : '—'} min à pied</span>
+            <span><i class="fas fa-exchange-alt"></i> ${r.transfers != null ? r.transfers : 0} corr.</span>
+            ${r.source === 'resrobot' ? '<span style="color:#16a34a;font-weight:700;">LIVE</span>' : ''}
           </div>
-        </div>
-      `).join('');
+        </div>`;
+      }).join('') + (
+        hasTransit
+          ? `<div style="font-size:10px;color:var(--text-muted);text-align:center;padding:10px 0 4px;">Horaires indicatifs ou live Trafiklab · billet via app Skånetrafiken</div>`
+          : ''
+      );
     }
 
     function formatDuration(min) {
@@ -4891,7 +6173,7 @@ function renderRoutes(routes) {
         const city = SKANE_CITIES.find(c => d.includes(c.name.toLowerCase()));
         if (city) { destLat = city.lat; destLng = city.lng; }
       }
-      const poi = POIS.find(p => d.includes(p.name.toLowerCase()));
+      const poi = POIS.find(p => poiMatchesQuery(p, d) || d.includes((p.name||'').toLowerCase()));
       if (poi) { destLat = poi.lat; destLng = poi.lng; }
       if (d.includes('lund')) { destLat = 55.7047; destLng = 13.1910; }
       else if (d.includes('helsingborg')) { destLat = 56.0465; destLng = 12.6945; }
@@ -4935,17 +6217,31 @@ function renderRoutes(routes) {
           </div>
         </div>
 
-        <div style="font-size:13px;font-weight:600;color:var(--text-muted);margin-bottom:12px;text-transform:uppercase;letter-spacing:0.4px;">Étapes</div>
+        ${(route.pills && route.pills.length) ? `
+        <div class="route-modes" style="margin-bottom:14px;">
+          ${route.pills.map(p => `<span class="mode-pill ${p.type}">${getIcon(p.type)} ${p.label}</span>`).join('')}
+        </div>` : ''}
+
+        <div style="font-size:13px;font-weight:600;color:var(--text-muted);margin-bottom:12px;text-transform:uppercase;letter-spacing:0.4px;">Étapes · transports publics</div>
         
-        ${route.steps.map(s => `
-          <div class="step-item">
-            <div class="step-icon" style="background:${route.color}">${getIcon(s.type)}</div>
+        ${(route.steps || []).map(s => {
+          const title = s.title || s.instruction || (s.type === 'bus' ? 'Bus' : s.type === 'train' ? 'Train' : s.type === 'walk' ? 'Marche' : 'Étape');
+          const desc = s.desc || [s.from && ('De ' + s.from), s.to && ('vers ' + s.to), s.time && ('à ' + s.time), s.duration && (s.duration + ' min')].filter(Boolean).join(' · ');
+          const bg = s.type === 'train' ? '#dc2626' : s.type === 'bus' ? '#2563eb' : s.type === 'walk' ? '#16a34a' : (route.color || '#2563eb');
+          return `<div class="step-item">
+            <div class="step-icon" style="background:${bg}">${getIcon(s.type)}</div>
             <div class="step-content">
-              <div class="step-title">${s.title}</div>
-              <div class="step-desc">${s.desc}</div>
+              <div class="step-title">${title}</div>
+              <div class="step-desc">${desc || ''}</div>
             </div>
-          </div>
-        `).join('')}
+          </div>`;
+        }).join('')}
+
+        ${(route.modes || []).some(m => m === 'bus' || m === 'train') ? `
+        <div style="margin-top:16px;padding:12px 14px;border-radius:14px;background:var(--primary-soft);border:1px solid var(--border);font-size:12px;line-height:1.45;color:var(--text-secondary);">
+          <strong style="color:var(--text);">Billet Skånetrafiken</strong><br>
+          Validez avant de monter. Achat dans l’app officielle Skånetrafiken (pas de paiement à bord sur la plupart des lignes).
+        </div>` : ''}
       `;
       expandSheet();
     }
@@ -5184,11 +6480,27 @@ function renderRoutes(routes) {
               <span>🗺️ Carte</span>
               <span style="font-weight:600;color:var(--primary);">${mapT === 'satellite' ? 'Satellite' : 'Plan'}</span>
             </div>
-            <div class="route-card" style="margin:0;padding:12px 14px;display:flex;justify-content:space-between;align-items:center;cursor:pointer;" onclick="toggleTraffic();renderSettings();">
-              <span>🚗 Trafic</span>
-              <span style="font-weight:600;color:var(--primary);">${trafficEnabled ? 'Activé' : 'Désactivé'}</span>
+            <div class="route-card" style="margin:0;padding:12px 14px;cursor:pointer;" onclick="toggleTraffic();renderSettings();">
+              <div style="display:flex;justify-content:space-between;align-items:center;">
+                <span>🚦 Trafic en temps réel</span>
+                <span style="font-weight:600;color:${trafficEnabled ? '#ea580c' : 'var(--primary)'};">${trafficEnabled ? 'Activé' : 'Désactivé'}</span>
+              </div>
+              <div style="font-size:11px;color:var(--text-muted);margin-top:6px;line-height:1.4;">
+                ${trafficEnabled ? getTrafficLabel() : 'Activez pour ajuster les temps (pointe Skåne) et le calque Mapbox si clé pk…'}
+              </div>
             </div>
-            <div style="font-size:13px;font-weight:700;margin:16px 0 8px;">🔑 Clés API (stockées sur cet appareil)</div>
+            <div style="font-size:13px;font-weight:700;margin:16px 0 8px;">Filtre carte (CSS)</div>
+            <div class="route-card" style="margin:0 0 12px;padding:12px 14px;">
+              <div style="font-size:12px;color:var(--text-secondary);margin-bottom:10px;line-height:1.4;">Rendu Facebook / Apple / iOS (filtres CSS)</div>
+              <div style="display:flex;flex-wrap:wrap;gap:8px;">
+                ${['facebook','apple','ios','vivid','muted','none'].map(n => {
+                  const active = (localStorage.getItem('vagvis-map-filter') || 'facebook') === n;
+                  return '<button type="button" onclick="setMapFilterPreset(\''+n+'\')" style="border:1px solid '+(active ? 'var(--primary)' : 'var(--border)')+';background:'+(active ? 'var(--primary)' : 'var(--bg-card)')+';color:'+(active ? '#fff' : 'var(--text)')+';font-weight:700;font-size:11px;padding:7px 12px;border-radius:20px;cursor:pointer;">'+n+'</button>';
+                }).join('')}
+              </div>
+            </div>
+
+          <div style="font-size:13px;font-weight:700;margin:16px 0 8px;">🔑 Clés API (stockées sur cet appareil)</div>
             <div class="route-card" style="margin:0;padding:12px 14px;">
               <div style="font-size:12px;font-weight:600;margin-bottom:6px;">Google Maps + Street View</div>
               <input id="settingsGoogleKey" type="password" autocomplete="off" placeholder="AIza…" value="${(CONFIG.googleMapsApiKey||'').replace(/"/g,'')}"
@@ -5197,13 +6509,36 @@ function renderRoutes(routes) {
                 style="background:var(--primary);border:none;color:white;font-weight:700;font-size:12px;padding:8px 12px;border-radius:10px;cursor:pointer;">Enregistrer Google</button>
               <div style="font-size:11px;color:var(--text-muted);margin-top:6px;">${CONFIG.googleMapsApiKey ? '✓ Clé active — bouton G' : 'Pas de clé — Street View indisponible'}</div>
             </div>
-            <div class="route-card" style="margin:8px 0 0;padding:12px 14px;">
+                        <div class="route-card" style="margin:0;padding:12px 14px;cursor:pointer;" onclick="toggleThemeAuto();renderSettings();">
+              <div style="display:flex;justify-content:space-between;align-items:center;">
+                <span>🌅 Thème auto (jour / nuit)</span>
+                <span style="font-weight:600;color:var(--primary);">${localStorage.getItem('vagvis-theme-auto') !== '0' ? 'Activé' : 'Désactivé'}</span>
+              </div>
+              <div style="font-size:11px;color:var(--text-muted);margin-top:6px;line-height:1.4;">
+                Sombre la nuit et par faible lumière · double-clic sur ☀/🌙 pour réactiver l'auto
+              </div>
+            </div>
+<div class="route-card" style="margin:8px 0 0;padding:12px 14px;">
               <div style="font-size:12px;font-weight:600;margin-bottom:6px;">Mapbox (trafic + 3D)</div>
               <input id="settingsMapboxKey" type="password" autocomplete="off" placeholder="pk.…" value="${(CONFIG.mapboxToken||'').replace(/"/g,'')}"
                 style="width:100%;background:var(--bg);border:1px solid var(--border);border-radius:10px;padding:8px 10px;color:var(--text);font-size:12px;margin-bottom:8px;">
               <button onclick="if(saveApiKey('mapbox',document.getElementById('settingsMapboxKey').value)){renderSettings();}"
                 style="background:var(--primary);border:none;color:white;font-weight:700;font-size:12px;padding:8px 12px;border-radius:10px;cursor:pointer;">Enregistrer Mapbox</button>
               <div style="font-size:11px;color:var(--text-muted);margin-top:6px;">${CONFIG.mapboxToken ? '✓ Clé active — boutons 3D / trafic' : 'Pas de clé'}</div>
+            </div>
+            <div class="route-card" style="margin:8px 0 0;padding:12px 14px;">
+              <div style="font-size:12px;font-weight:600;margin-bottom:6px;">🚌 API Skånetrafiken (Trafiklab)</div>
+              <div style="font-size:12px;color:var(--text-secondary);line-height:1.45;margin-bottom:8px;">
+                Itinéraires : <strong>ResRobot</strong> · Départs : <strong>Trafiklab Realtime</strong>.<br>
+                Clés <em>uniquement</em> sur le backend (jamais dans Netlify).
+              </div>
+              <label style="display:block;font-size:11px;color:var(--text-muted);margin-bottom:4px;">URL du backend (ex. Vercel)</label>
+              <input id="settingsBackendUrl" type="url" autocomplete="off" placeholder="https://ton-projet.vercel.app"
+                value="${(CONFIG.backendUrl||localStorage.getItem('vagvis-backend-url')||'').replace(/"/g,'')}"
+                style="width:100%;background:var(--bg);border:1px solid var(--border);border-radius:10px;padding:8px 10px;color:var(--text);font-size:12px;margin-bottom:8px;">
+              <button type="button" onclick="(function(){var v=(document.getElementById('settingsBackendUrl')||{}).value||'';var u=v.trim().replace(/\/$/,'');if(u&&!/^https?:\/\//i.test(u)){showToast('URL invalide');return;}if(u){localStorage.setItem('vagvis-backend-url',u);CONFIG.backendUrl=u;showToast('Backend Skånetrafiken enregistré');}else{localStorage.removeItem('vagvis-backend-url');CONFIG.backendUrl=null;showToast('Backend effacé');}renderSettings();})()"
+                style="background:var(--primary);border:none;color:white;font-weight:700;font-size:12px;padding:8px 12px;border-radius:10px;cursor:pointer;">Enregistrer le backend</button>
+              <div style="font-size:11px;color:var(--text-muted);margin-top:6px;">${CONFIG.backendUrl ? '✓ ' + CONFIG.backendUrl : 'Pas de backend distant — estimations locales'}</div>
             </div>
             <div class="route-card" style="margin:8px 0 0;padding:12px 14px;">
               <div style="font-size:12px;font-weight:600;margin-bottom:6px;">🚨 Alertes Skånetrafiken (Trafiklab)</div>
@@ -5215,7 +6550,7 @@ function renderRoutes(routes) {
               <div style="font-size:11px;font-family:monospace;background:var(--bg);padding:8px;border-radius:8px;color:var(--text-muted);word-break:break-all;">
                 TRAFIKLAB_KEY=ta_cle node server.js
               </div>
-              <button type="button" onclick="fetchLiveSkaneAlerts().then(a=>{renderAlertsBar();renderSettings();showToast(a.length?('✓ '+a.length+' alertes live'):'Pas de live — vérifie backend/clé');}).catch(()=>showToast('Échec connexion alerts'))"
+              <button type="button" onclick="fetchLiveSkaneAlerts().then(a=>{renderAlertsBar();renderSettings();showToast(a.length?('✓ '+a.length+' alertes live'):'Pas de données live — vérifiez le backend et la clé');}).catch(()=>showToast('Échec de la connexion aux alertes'))"
                 style="margin-top:8px;background:var(--primary);border:none;color:white;font-weight:700;font-size:12px;padding:8px 12px;border-radius:10px;cursor:pointer;">Actualiser les alertes</button>
             </div>
             <div class="route-card" style="margin:0;padding:12px 14px;display:flex;justify-content:space-between;align-items:center;">
@@ -5256,7 +6591,7 @@ function renderRoutes(routes) {
           <div style="font-size:12px;color:var(--text-muted);line-height:1.5;text-align:center;">
             Application de démonstration pour Skåne.<br>
             Données transport simulées • Carte © OpenStreetMap<br>
-            Itinéraires via OSRM • Adresses via Nominatim
+            Itinéraires via OSRM • Adresses via Photon + Nominatim
           </div>
         </div>
       `;
@@ -5772,50 +7107,56 @@ function renderRoutes(routes) {
       lastSource: 'mock',
 
       async getDepartures(stopName = 'Malmö C') {
-        if (CONFIG.dataMode === 'live' && CONFIG.apiBase) {
+        // Même origine (Vercel/Netlify+proxy/backend :3001) ou apiBase configuré
+        const base = (typeof resolveApiBase === 'function' ? resolveApiBase() : (CONFIG.backendUrl || CONFIG.apiBase || '')).replace(/\/$/, '');
+        const tryLive = CONFIG.dataMode === 'live';
+        if (tryLive) {
           try {
             const ctrl = new AbortController();
-            const timer = setTimeout(() => ctrl.abort(), 4000);
-            const res = await fetch(
-              `${CONFIG.apiBase}/api/departures?stop=${encodeURIComponent(stopName)}`,
-              { signal: ctrl.signal }
-            );
+            const timer = setTimeout(() => ctrl.abort(), 8000);
+            const url = `${base}/api/departures?stop=${encodeURIComponent(stopName)}`;
+            const res = await fetch(url, { signal: ctrl.signal });
             clearTimeout(timer);
             if (res.ok) {
               const data = await res.json();
-              this.lastSource = data.source === 'gtfs' ? 'gtfs' : 'backend-mock';
               if (data.departures?.length) {
+                this.lastSource = data.source === 'resrobot' ? 'resrobot'
+                  : (data.source === 'gtfs' ? 'gtfs' : 'backend-mock');
+                this.lastProvider = data.provider || null;
                 return data.departures.map(d => ({
                   line: d.line,
                   dest: d.dest,
                   type: d.type || 'bus',
-                  color: d.color || '#2563eb',
+                  color: d.color || (d.type === 'train' ? '#dc2626' : '#2563eb'),
                   minutes: d.minutes,
-                  baseMin: d.minutes
+                  baseMin: d.minutes,
+                  departure: d.departure || null,
+                  realtime: Boolean(d.realtime)
                 }));
               }
             }
           } catch (e) {
-            console.warn('Backend GTFS indisponible, fallback mock', e.message || e);
+            console.warn('Départs Skånetrafiken indisponibles, fallback mock', e.message || e);
             this.lastSource = 'mock-fallback';
           }
         }
         this.lastSource = 'mock';
+        this.lastProvider = null;
         return getMockDepartures();
       },
 
       getStatus() {
-        if (this.lastSource === 'gtfs') return 'Backend GTFS — données Skånetrafiken';
+        if (this.lastSource === 'trafiklab-realtime') return 'Skånetrafiken live · Trafiklab Realtime';
+        if (this.lastSource === 'resrobot') return 'Skånetrafiken live · Trafiklab ResRobot';
+        if (this.lastSource === 'gtfs') return 'GTFS Skånetrafiken (planifié)';
         if (this.lastSource === 'backend-mock') return 'Backend actif — horaires simulés réalistes';
         if (this.lastSource === 'mock-fallback') return 'Backend hors ligne — simulation locale';
         if (this.lastSource === 'mock') {
           return CONFIG.dataMode === 'live'
-            ? 'Simulation locale — lance le backend pour l\'API'
+            ? 'Simulation locale — lancez le backend pour Skånetrafiken live'
             : 'Mode simulation réaliste';
         }
-        return CONFIG.dataMode === 'live'
-          ? 'Connexion backend…'
-          : 'Mode simulation réaliste';
+        return CONFIG.dataMode === 'live' ? 'Connexion Skånetrafiken…' : 'Mode simulation réaliste';
       }
     };
 
@@ -5849,30 +7190,55 @@ function renderRoutes(routes) {
       { line: 'Bus 35', dest: 'Klagshamn', type: 'bus', color: '#1d4ed8', baseMin: 16 },
     ];
 
-    async function renderDepartures() {
+    async function renderDepartures(stopName) {
       const list = document.getElementById('departuresList');
       if (!list) return;
+      let stop = stopName;
+      if (!stop) {
+        const hub = nearestTransitHub(userLat, userLng);
+        stop = hub.name;
+      }
+      list.innerHTML = '<div class="state-message"><div class="spinner"></div><p>Chargement Skånetrafiken…</p></div>';
 
-      const deps = await DataService.getDepartures('Malmö C');
+      const deps = await DataService.getDepartures(stop);
+      const status = DataService.getStatus();
 
-      list.innerHTML = deps.map(d => `
-        <div style="display:flex;align-items:center;padding:12px 0;border-bottom:1px solid var(--border);">
+      if (!deps.length) {
+        list.innerHTML = `<div class="state-message"><p>Aucun départ pour ${stop}</p><p style="font-size:12px;color:var(--text-muted);">${status}</p></div>`;
+        return;
+      }
+
+      const hubChips = TRANSIT_HUBS.slice(0, 6).map(h =>
+        `<button type="button" onclick="renderDepartures('${h.name.replace(/'/g, "\\'")}')" style="border:1px solid var(--border);background:${h.name===stop?'var(--primary)':'var(--bg-card)'};color:${h.name===stop?'#fff':'var(--text)'};border-radius:20px;padding:6px 10px;font-size:11px;font-weight:700;cursor:pointer;">${h.name}</button>`
+      ).join('');
+      list.innerHTML = `
+        <div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px;">${hubChips}</div>
+        <div style="font-size:12px;color:var(--text-muted);margin-bottom:10px;line-height:1.4;">
+          <strong style="color:var(--text);">${stop}</strong> · ${status}
+        </div>
+        ${deps.map(d => {
+          const when = d.minutes <= 0 ? 'Maintenant' : (d.minutes === 1 ? '1 min' : d.minutes + ' min');
+          const clock = d.departure ? ` · ${d.departure}` : '';
+          const live = d.realtime ? ' <span style="color:#16a34a;font-weight:700;">LIVE</span>' : '';
+          const kind = d.type === 'train' ? 'Train' : (d.type === 'tram' ? 'Tram' : 'Bus');
+          return `<div style="display:flex;align-items:center;padding:12px 0;border-bottom:1px solid var(--border);">
           <div style="width:54px;height:40px;border-radius:10px;background:${d.color};display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:800;color:white;margin-right:14px;flex-shrink:0;text-align:center;line-height:1.15;padding:0 4px;">
             ${d.line}
           </div>
           <div style="flex:1;min-width:0;">
             <div style="font-weight:600;font-size:15px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${d.dest}</div>
-            <div style="font-size:12px;color:var(--text-muted);margin-top:1px;">${d.type === 'train' ? 'Train' : 'Bus'} • Malmö C</div>
+            <div style="font-size:12px;color:var(--text-muted);margin-top:1px;">${kind} · ${stop}${clock}${live}</div>
           </div>
-          <div style="font-weight:700;font-size:16px;color:var(--primary);min-width:48px;text-align:right;font-variant-numeric:tabular-nums;">
-            ${d.minutes} min
+          <div style="font-weight:700;font-size:16px;color:var(--primary);min-width:56px;text-align:right;font-variant-numeric:tabular-nums;">
+            ${when}
           </div>
-        </div>
-      `).join('');
+        </div>`;
+        }).join('')}
+        <div style="font-size:10px;color:var(--text-muted);text-align:center;padding:12px 0 4px;">data from Trafiklab.se · Skånetrafiken</div>
+      `;
 
-      // Statut données (discret)
       const statusEl = document.getElementById('dataStatus');
-      if (statusEl) statusEl.textContent = DataService.getStatus();
+      if (statusEl) statusEl.textContent = status;
     }
 
     function updateClock() {
@@ -5888,15 +7254,39 @@ function renderRoutes(routes) {
       updateGpsDisplay(userLat, userLng, null, 'default');
       renderFavorites();
       setTimeout(locateUser, 700);
+      initOfflineNavListeners();
+      setTimeout(() => {
+        const offlineNav = loadOfflineNavState();
+        if (offlineNav) {
+          showToast('Trajet mémorisé disponible — reprise…');
+          resumeOfflineNavigation(offlineNav);
+        }
+      }, 1800);
+      setTimeout(() => fetchLocalWeather(userLat, userLng), 900);
+      setInterval(() => fetchLocalWeather(userLat, userLng), 15 * 60 * 1000);
       renderDepartures();
       updateClock();
       setInterval(updateClock, 10000);
       setInterval(renderDepartures, 30000);
 
-      // Theme
-      const savedTheme = localStorage.getItem('vagvis-theme') || 'ios';
-      setTheme(savedTheme);
+      // Theme : auto jour/nuit par défaut (sauf si l'utilisateur a choisi manuel)
+      if (localStorage.getItem('vagvis-theme-auto') === null) {
+        localStorage.setItem('vagvis-theme-auto', '1');
+      }
+      if (localStorage.getItem('vagvis-theme-auto') !== '0') {
+        applyAutoTheme('init');
+      } else {
+        setTheme(localStorage.getItem('vagvis-theme') || 'ios');
+      }
+      startAmbientLightWatch();
+      setInterval(() => {
+        if (localStorage.getItem('vagvis-theme-auto') !== '0') applyAutoTheme('tick');
+      }, 5 * 60 * 1000);
       document.getElementById('themeToggle')?.addEventListener('click', toggleTheme);
+      document.getElementById('themeToggle')?.addEventListener('dblclick', (e) => {
+        e.preventDefault();
+        enableThemeAuto();
+      });
       document.getElementById('iosModeBtn')?.addEventListener('click', toggleIosMode);
       updateIosButton();
       initTextScale();
