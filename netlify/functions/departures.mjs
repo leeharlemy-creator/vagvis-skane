@@ -37,25 +37,51 @@ function raccourcir(texte, max = 12) {
   return t.length > max ? t.slice(0, max - 1) + '…' : t;
 }
 
-// Résultats de la recherche d'arrêts de Trafiklab (on accepte plusieurs formes de réponse)
+// Résultats de la recherche d'arrêts de Trafiklab : { stop_groups: [{ id, name, area_type, average_daily_stop_times, transport_modes, stops: [{ lat, lon }] }] }
 function extraireResultats(data) {
   if (!data || typeof data !== 'object') return [];
   const groupes = data.stop_groups || data.stopGroups || data.stops || data.results || data.stop_locations || [];
-  return liste(groupes).map((g) => ({
-    id: g.id || g.stop_group_id || g.stop_id || g.stopId || g.extId || null,
-    name: g.name || g.stop_name || g.stopName || ''
-  })).filter((g) => g.id);
+  return liste(groupes).map((g) => {
+    const p = liste(g.stops)[0] || g;
+    const lat = Number(p.lat !== undefined ? p.lat : p.latitude);
+    const lon = Number(p.lon !== undefined ? p.lon : (p.lng !== undefined ? p.lng : p.longitude));
+    return {
+      id: g.id || g.stop_group_id || g.stop_id || g.stopId || g.extId || null,
+      name: g.name || g.stop_name || g.stopName || '',
+      lat: Number.isFinite(lat) ? lat : null,
+      lon: Number.isFinite(lon) ? lon : null,
+      modes: liste(g.transport_modes),
+      trafic: Number(g.average_daily_stop_times) || 0
+    };
+  }).filter((g) => g.id);
+}
+
+// Skåne (avec Copenhague) : on ne garde que les arrêts situés dans cette zone
+function dansSkane(r) {
+  return r.lat !== null && r.lon !== null && r.lat >= 55.3 && r.lat <= 56.55 && r.lon >= 12.35 && r.lon <= 14.65;
 }
 
 function meilleurResultat(resultats, requete) {
   const q = norm(requete);
-  return (
-    resultats.find((r) => norm(r.name) === q) ||
-    resultats.find((r) => norm(r.name).startsWith(q)) ||
-    resultats.find((r) => norm(r.name).includes(q)) ||
-    resultats[0] ||
-    null
-  );
+  const premierMot = norm(requete.split(' ')[0]);
+  const avecPosition = resultats.filter((r) => r.lat !== null && r.lon !== null);
+  const candidats = avecPosition.length ? avecPosition.filter(dansSkane) : resultats;
+  if (!candidats.length) return null;
+  const gare = /\b(c|station|centralstation|central)\b/.test(q);
+  let meilleur = null, scoreMax = -1;
+  for (const r of candidats) {
+    const n = norm(r.name);
+    let score = 0;
+    if (n === q) score += 100;
+    else if (n.startsWith(q)) score += 60;
+    else if (n.startsWith(premierMot)) score += 40;
+    else if (n.includes(q)) score += 20;
+    else if (n.includes(premierMot)) score += 10;
+    if (gare && r.modes.includes('TRAIN')) score += 15;
+    score += Math.log10(1 + r.trafic);
+    if (score > scoreMax) { scoreMax = score; meilleur = r; }
+  }
+  return scoreMax >= 10 ? meilleur : null;
 }
 
 async function resoudreArret(nom, cle, diag) {

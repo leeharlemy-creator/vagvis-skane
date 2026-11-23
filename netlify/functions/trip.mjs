@@ -44,8 +44,9 @@ function legKind(leg) {
 function legLabel(leg, kind) {
   const p = product(leg);
   let name = String(leg.name || p.name || '').trim();
-  name = name.replace(/^.*? - /, '').replace(/^Buss\b/i, 'Bus').trim();
-  name = name.replace(/^(Länstrafik|Regional)\s+tåg\b/i, 'Tåg').replace(/^Länstrafik\s+/i, '').trim();
+  name = name.replace(/^.*? - /, '');                    // « Länstrafik - Buss 8 » -> « Buss 8 »
+  name = name.replace(/^(Länstrafik|Regional)\s+/i, '');  // « Länstrafik buss 2 » -> « buss 2 »
+  name = name.replace(/^buss\b/i, 'Bus').replace(/^tåg\b/i, 'Tåg').trim();
   if (!name) name = kind === 'train' ? 'Train' : 'Bus';
   return name.slice(0, 28);
 }
