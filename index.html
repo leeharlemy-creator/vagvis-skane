@@ -1209,6 +1209,7 @@
     </div>
     <div id="navProgress"><i id="navProgressBar"></i></div>
     <div class="nav-actions">
+      <button type="button" id="navVoiceBtn" onclick="toggleNavVoice()" title="Guidage vocal">🔊 Vocal</button>
       <button type="button" id="navStopBtn" onclick="stopNavigation()">Arrêter</button>
       <button type="button" id="navRecenterBtn" onclick="recenterNavigation()">Recentrer</button>
     </div>
@@ -1237,6 +1238,7 @@
         <button id="satToggle" title="Vue satellite" style="background:var(--bg-card);border:1px solid var(--border);color:var(--text);width:32px;height:32px;border-radius:8px;cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:14px;">
           <i class="fas fa-globe"></i>
         </button>
+        <button id="lightToggle" title="Éclairage carte" onclick="cycleMapLight()" style="background:var(--bg-card);border:1px solid var(--border);color:var(--text);width:32px;height:32px;border-radius:8px;cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:15px;">☀️</button>
         <button id="trafficToggle" title="Trafic" style="background:var(--bg-card);border:1px solid var(--border);color:var(--text);width:32px;height:32px;border-radius:8px;cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:14px;">
           <i class="fas fa-car"></i>
         </button>
@@ -1433,9 +1435,17 @@
     <!-- Tableau Départs imminents réaliste -->
     <div id="departuresBoard" class="sheet-scroll" style="display:none;padding:0 16px 24px;">
       <div style="font-size:13px;color:var(--text-muted);margin-bottom:14px;display:flex;justify-content:space-between;align-items:center;">
-        <span>Malmö C • Prochains départs</span>
+        <span id="depStopTitle">Malmö C • Prochains départs</span>
         <span id="liveClock" style="font-variant-numeric:tabular-nums;font-weight:600;"></span>
       </div>
+      <div style="display:flex;gap:8px;margin-bottom:12px;">
+        <input id="depSearchInput" list="depStopList" type="search" autocomplete="off" autocapitalize="words"
+          placeholder="Un autre arrêt ou une gare (ex. Eslöv, Höör, Södervärn…)"
+          style="flex:1;min-width:0;padding:10px 12px;border-radius:12px;border:1px solid var(--border);background:var(--bg-card);color:var(--text);font-size:14px;">
+        <button type="button" onclick="submitDepartureSearch()"
+          style="padding:10px 16px;border-radius:12px;border:none;background:var(--primary);color:#fff;font-weight:700;font-size:14px;">Voir</button>
+      </div>
+      <datalist id="depStopList"></datalist>
       <div id="departuresList"></div>
       <div id="dataStatus" style="margin-top:16px;font-size:11px;color:var(--text-muted);text-align:center;">
         Mode simulation réaliste • Skånetrafiken
@@ -1690,22 +1700,23 @@
     let mapType = localStorage.getItem('vagvis-maptype') || 'street'; // 'street' | 'satellite'
     let trafficEnabled = localStorage.getItem('vagvis-traffic') === '1';
 
+    // Éclairage carte indépendant du thème UI
+    let mapLightMode = localStorage.getItem('vagvis-map-light') || 'clair';
+
     function getTileConfig(theme, type) {
       const token = CONFIG.mapboxToken;
-      // Mapbox si clé publique présente (rendu premium type Google)
+      const light = mapLightMode || 'clair';
+      const wantLightTiles = (light === 'clair' || light === 'pastel' || light === 'facebook');
+      const wantDarkTiles = (light === 'sombre') || (light === 'auto' && theme === 'dark' && !wantLightTiles);
+
       if (token && typeof token === 'string' && token.startsWith('pk.')) {
         let styleId;
         if (trafficEnabled && type !== 'satellite') {
-          styleId = theme === 'dark'
-            ? 'mapbox/traffic-night-v2'
-            : 'mapbox/traffic-day-v2';
+          styleId = wantDarkTiles ? 'mapbox/traffic-night-v2' : 'mapbox/traffic-day-v2';
         } else if (type === 'satellite') {
           styleId = CONFIG.mapboxStyleSatellite || 'mapbox/satellite-streets-v12';
-        } else if (theme === 'dark') {
+        } else if (wantDarkTiles) {
           styleId = CONFIG.mapboxStyleDark || 'mapbox/dark-v11';
-        } else if (theme === 'ios') {
-          // Clair type Apple Maps
-          styleId = CONFIG.mapboxStyleStreet || 'mapbox/streets-v12';
         } else {
           styleId = CONFIG.mapboxStyleStreet || 'mapbox/streets-v12';
         }
@@ -1719,34 +1730,26 @@
           }
         };
       }
-      // Satellite gratuit (Esri)
       if (type === 'satellite') {
         return {
           url: 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
-          options: {
-            maxZoom: 19,
-            attribution: 'Tiles © Esri'
-          }
+          options: { maxZoom: 19, attribution: 'Tiles © Esri' }
         };
       }
-      // Fonds GRATUITS sans clé API
-      if (theme === 'dark') {
+      if (wantDarkTiles) {
         return {
           url: 'https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Dark_Gray_Base/MapServer/tile/{z}/{y}/{x}',
           options: { maxZoom: 19, maxNativeZoom: 16, attribution: 'Tiles © Esri' }
         };
       }
-      // Rendu type Facebook / Meta Map : mer turquoise, terres pastel (OSM + filtre CSS)
-      // OSM standard = eau bleue + parcs verts, sans clé
-      if (theme === 'ios' || theme === 'light' || theme === 'root') {
+      // Pastel / Facebook : OpenStreetMap + filtres de couleur (CARTO exige maintenant une clé)
+      if (light === 'pastel' || light === 'facebook') {
         return {
           url: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
-          options: {
-            maxZoom: 19,
-            attribution: '© OpenStreetMap'
-          }
+          options: { maxZoom: 19, attribution: '© OpenStreetMap' }
         };
       }
+      // Clair OSM (comme ta capture)
       return {
         url: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
         options: { maxZoom: 19, attribution: '© OpenStreetMap' }
@@ -2002,9 +2005,16 @@
 
     const MAP_FILTER_PRESETS = {
       facebook: {
-        /* Lisible + beau : mer bleue, terres claires, labels pas lavés */
         filter: 'saturate(1.18) brightness(1.06) contrast(0.96)',
         wash: 'linear-gradient(180deg, rgba(147,197,253,0.08) 0%, rgba(255,255,255,0.03) 50%, rgba(255,251,235,0.06) 100%)'
+      },
+      clair: {
+        filter: 'saturate(1.12) brightness(1.08) contrast(0.98)',
+        wash: 'linear-gradient(180deg, rgba(255,252,245,0.06) 0%, rgba(240,248,255,0.04) 100%)'
+      },
+      pastel: {
+        filter: 'saturate(1.22) brightness(1.07) contrast(0.97)',
+        wash: 'linear-gradient(180deg, rgba(186,230,253,0.07) 0%, rgba(254,243,199,0.05) 100%)'
       },
       apple: {
         filter: 'saturate(1.05) brightness(1.04) contrast(0.98)',
@@ -2022,6 +2032,10 @@
         filter: 'saturate(0.75) brightness(1.05) contrast(0.95)',
         wash: 'linear-gradient(180deg, rgba(255,255,255,0.08) 0%, rgba(241,245,249,0.1) 100%)'
       },
+      sombre: {
+        filter: 'brightness(1.1) contrast(1.08) saturate(0.9)',
+        wash: 'none'
+      },
       dark: {
         filter: 'brightness(1.1) contrast(1.08) saturate(0.9)',
         wash: 'none'
@@ -2029,20 +2043,21 @@
       none: { filter: 'none', wash: 'none' }
     };
 
-    let mapFilterPreset = localStorage.getItem('vagvis-map-filter') || 'facebook';
+    let mapFilterPreset = localStorage.getItem('vagvis-map-filter') || 'clair';
 
     function applyMapFilter(theme, type) {
       const pane = document.querySelector('.leaflet-tile-pane');
-      let presetName = mapFilterPreset || 'facebook';
+      let presetName = mapFilterPreset || 'clair';
       if (type === 'satellite') presetName = 'none';
-      else if (theme === 'dark') presetName = (presetName === 'none') ? 'none' : 'dark';
-      // iOS / clair : garder facebook (lisible et joli) sauf choix explicite
-      else if ((theme === 'ios' || theme === 'light') && !localStorage.getItem('vagvis-map-filter')) {
-        presetName = 'facebook';
+      else if ((mapLightMode || 'clair') === 'sombre') presetName = 'dark';
+      else if (mapLightMode === 'clair' || mapLightMode === 'pastel' || mapLightMode === 'facebook') {
+        if (presetName === 'dark' || presetName === 'sombre') {
+          presetName = mapLightMode === 'pastel' ? 'pastel' : (mapLightMode === 'facebook' ? 'facebook' : 'clair');
+        }
       }
 
       if (snapToneActive) presetName = 'none'; // la recoloration Snap remplace les filtres CSS
-      const preset = MAP_FILTER_PRESETS[presetName] || MAP_FILTER_PRESETS.facebook;
+      const preset = MAP_FILTER_PRESETS[presetName] || MAP_FILTER_PRESETS.clair;
       if (pane) {
         pane.style.filter = preset.filter;
         pane.style.transition = 'filter 0.35s ease';
@@ -2072,15 +2087,50 @@
       showToast('Filtre carte : ' + name);
       try { renderSettings(); } catch (_) {}
     }
+
     window.setMapFilterPreset = setMapFilterPreset;
 
     let snapToneActive = false;
+    function setMapLightMode(mode) {
+      const allowed = ['clair', 'pastel', 'facebook', 'sombre', 'auto'];
+      if (!allowed.includes(mode)) mode = 'clair';
+      mapLightMode = mode;
+      localStorage.setItem('vagvis-map-light', mode);
+      if (mode === 'clair') mapFilterPreset = 'clair';
+      else if (mode === 'pastel') mapFilterPreset = 'pastel';
+      else if (mode === 'facebook') mapFilterPreset = 'facebook';
+      else if (mode === 'sombre') mapFilterPreset = 'dark';
+      localStorage.setItem('vagvis-map-filter', mapFilterPreset);
+      applyMapTiles();
+      updateLightButton();
+      const labels = { clair: 'Carte claire', pastel: 'Carte pastel', facebook: 'Style Facebook', sombre: 'Carte sombre', auto: 'Auto (thème)' };
+      showToast(labels[mode] || mode);
+      try { renderSettings(); } catch (_) {}
+    }
+    window.setMapLightMode = setMapLightMode;
+
+    function cycleMapLight() {
+      const order = ['clair', 'pastel', 'facebook', 'sombre'];
+      const i = order.indexOf(mapLightMode);
+      setMapLightMode(order[(i + 1) % order.length]);
+    }
+    window.cycleMapLight = cycleMapLight;
+
+    function updateLightButton() {
+      const btn = document.getElementById('lightToggle');
+      if (!btn) return;
+      const icons = { clair: '☀️', pastel: '🎨', facebook: '💙', sombre: '🌙', auto: '⟳' };
+      btn.innerHTML = icons[mapLightMode] || '☀️';
+      btn.title = 'Éclairage carte : ' + (mapLightMode || 'clair') + ' (cliquer pour changer)';
+    }
+
+
     function applyMapTiles() {
       const theme = document.documentElement.getAttribute('data-theme') || localStorage.getItem('vagvis-theme') || 'ios';
       const cfg = getTileConfig(theme === 'ios' ? 'ios' : theme, mapType);
       if (tileLayer && map) map.removeLayer(tileLayer);
       // Rendu « Snap Map » sur la carte claire (OpenStreetMap recolorée) ; sinon tuiles normales
-      snapToneActive = (theme === 'ios' || theme === 'light' || theme === 'root') && mapType !== 'satellite'
+      snapToneActive = (mapLightMode || 'clair') === 'clair' && (theme === 'ios' || theme === 'light' || theme === 'root') && mapType !== 'satellite'
         && /tile\.openstreetmap\.org/.test(cfg.url) && !snapToneDisabled();
       tileLayer = (snapToneActive ? new SnapTileLayer(cfg.url, cfg.options) : L.tileLayer(cfg.url, cfg.options)).addTo(map);
       applyMapFilter(theme, mapType);
@@ -2092,6 +2142,7 @@
           : '<i class="fas fa-globe"></i>';
         btn.title = mapType === 'satellite' ? 'Vue plan' : 'Vue satellite';
       }
+      try { updateLightButton(); } catch (_) {}
     }
 
     function toggleSatellite() {
@@ -4506,12 +4557,105 @@
       return d;
     }
 
+
+    // ========== GUIDAGE VOCAL (Web Speech API) ==========
+    let navVoiceOn = localStorage.getItem('vagvis-nav-voice') !== '0';
+    let lastSpokenInstr = '';
+    let lastSpokenAt = 0;
+    let lastSpokenDistBucket = null;
+
+    function getFrenchVoice() {
+      if (!window.speechSynthesis) return null;
+      const voices = speechSynthesis.getVoices() || [];
+      const fr = voices.filter(v => (v.lang || '').toLowerCase().startsWith('fr'));
+      // Préférer fr-FR / fr-SE / Amélie / Thomas
+      return fr.find(v => /fr-FR/i.test(v.lang)) ||
+             fr.find(v => /fr/i.test(v.lang) && /female|amélie|amelie|claire|audrey/i.test(v.name)) ||
+             fr[0] || null;
+    }
+
+    function stopNavSpeech() {
+      try {
+        if (window.speechSynthesis) speechSynthesis.cancel();
+      } catch (_) {}
+    }
+
+    function speakNavInstruction(text, opts) {
+      if (!navVoiceOn || !text || !window.speechSynthesis) return;
+      const force = opts && opts.force;
+      const clean = String(text)
+        .replace(/[📍⏱🚲🚶🚌↑↰↱↗↖↩🏁▶]/g, ' ')
+        .replace(/\s+/g, ' ')
+        .trim();
+      if (!clean) return;
+      // Éviter de répéter la même consigne trop souvent
+      const now = Date.now();
+      if (!force && clean === lastSpokenInstr && now - lastSpokenAt < 12000) return;
+      lastSpokenInstr = clean;
+      lastSpokenAt = now;
+      try {
+        speechSynthesis.cancel();
+        const u = new SpeechSynthesisUtterance(clean);
+        u.lang = 'fr-FR';
+        u.rate = 1.0;
+        u.pitch = 1.0;
+        u.volume = 1.0;
+        const v = getFrenchVoice();
+        if (v) u.voice = v;
+        speechSynthesis.speak(u);
+      } catch (e) {
+        console.warn('Speech', e);
+      }
+    }
+
+    function updateVoiceButton() {
+      const btn = document.getElementById('navVoiceBtn');
+      if (!btn) return;
+      if (!window.speechSynthesis) {
+        btn.textContent = '🔇 N/A';
+        btn.title = 'Synthèse vocale non disponible sur cet appareil';
+        return;
+      }
+      btn.textContent = navVoiceOn ? '🔊 Vocal' : '🔇 Muet';
+      btn.title = navVoiceOn ? 'Couper le guidage vocal' : 'Activer le guidage vocal';
+      btn.style.opacity = navVoiceOn ? '1' : '0.65';
+    }
+
+    function toggleNavVoice() {
+      navVoiceOn = !navVoiceOn;
+      localStorage.setItem('vagvis-nav-voice', navVoiceOn ? '1' : '0');
+      updateVoiceButton();
+      if (!navVoiceOn) {
+        stopNavSpeech();
+        showToast('Guidage vocal désactivé');
+      } else {
+        // Charger les voix (certains navigateurs les exposent en async)
+        try { speechSynthesis.getVoices(); } catch (_) {}
+        showToast('Guidage vocal activé');
+        if (navActive) {
+          const instr = document.getElementById('navInstr')?.textContent;
+          if (instr) speakNavInstruction(instr, { force: true });
+        }
+      }
+    }
+
+    window.toggleNavVoice = toggleNavVoice;
+
+    // Précharger les voix (Chrome)
+    if (typeof speechSynthesis !== 'undefined') {
+      try {
+        speechSynthesis.getVoices();
+        speechSynthesis.onvoiceschanged = () => { speechSynthesis.getVoices(); };
+      } catch (_) {}
+    }
+
     function stepInstruction(step) {
       if (!step) return 'Continuez tout droit';
       const t = (step.instruction || step.type || '').toLowerCase();
       const name = step.name ? ` sur ${step.name}` : '';
       const mod = (step.modifier || '').toLowerCase();
-      if (t === 'depart') return 'Départ' + name;
+      // Ne pas afficher « Départ » pendant le guidage actif (ressemble à un bouton play)
+      if (t === 'depart') return step.name ? ('Continuez sur ' + step.name) : 'Suivez l\'itinéraire';
       if (t === 'arrive' || t === 'destination') return 'Vous êtes arrivé';
       if (t === 'turn' || t.includes('turn')) {
         if (mod.includes('slight left') || mod === 'slight left') return 'Légèrement à gauche' + name;
@@ -4539,7 +4683,7 @@
       const t = (step.instruction || step.type || '').toLowerCase();
       const mod = (step.modifier || '').toLowerCase();
       if (t === 'arrive' || t === 'destination') return '🏁';
-      if (t === 'depart') return '▶';
+      if (t === 'depart') return '↑';
       if (t === 'roundabout' || t === 'rotary') return '↻';
       if (t === 'merge' || t === 'on ramp') return '⤴';
       if (t === 'off ramp') return '⤵';
@@ -4666,20 +4810,38 @@
       let street = '';
 
       if (navSteps.length) {
+        // Sauter immédiatement les étapes « depart » (affichage type play)
+        while (navStepIndex < navSteps.length - 1) {
+          const cur = navSteps[navStepIndex];
+          const ct = (cur.instruction || cur.type || '').toLowerCase();
+          if (ct === 'depart') { navStepIndex++; continue; }
+          break;
+        }
         while (navStepIndex < navSteps.length - 1) {
           const s = navSteps[navStepIndex];
           const stepEnd = (s._cumDist || 0) + (s.distance || 40);
           const fromStart = (navTotalDist || 0) - remain;
-          // Seuil plus fin à pied (manœuvres plus fréquentes)
           const thresh = (navDest.mode === 'walk') ? 18 : 25;
+          // Étape courte / déjà parcourue
           if (fromStart > stepEnd - thresh) {
             navStepIndex++;
           } else break;
         }
-        const step = navSteps[Math.min(navStepIndex, navSteps.length - 1)];
+        // Si encore sur depart (seul step), afficher continue
+        let step = navSteps[Math.min(navStepIndex, navSteps.length - 1)];
+        const stype = (step.instruction || step.type || '').toLowerCase();
+        if (stype === 'depart' && navStepIndex < navSteps.length - 1) {
+          navStepIndex++;
+          step = navSteps[navStepIndex];
+        }
         instr = stepInstruction(step);
         icon = stepIcon(step);
         street = step.name || '';
+        // Ne jamais laisser l'icône « play »
+        if (icon === '▶') icon = '↑';
+        if (/^Départ\b/i.test(instr)) {
+          instr = street ? ('Continuez sur ' + street) : 'Suivez l\'itinéraire';
+        }
         const fromStart = Math.max(0, (navTotalDist || 0) - remain);
         nextStepDist = Math.max(0, ((step._cumDist || 0) + (step.distance || 50)) - fromStart);
         if (nextStepDist > remain) nextStepDist = Math.min(remain, step.distance || remain);
@@ -4723,6 +4885,20 @@
       if (etaEl) etaEl.textContent = '⏱ ~' + etaMin + ' min';
       if (modeEl) modeEl.textContent = navDest.mode === 'bike' ? '🚲 Vélo' : navDest.mode === 'walk' ? '🚶 Marche' : '🚌 Trajet';
 
+      // Guidage vocal : nouvelle consigne ou annonce de distance
+      if (navVoiceOn && instr && !/^Vous êtes arrivé/i.test(instr)) {
+        const distBucket = nextStepDist < 40 ? 30 : nextStepDist < 90 ? 80 : nextStepDist < 180 ? 150 : nextStepDist < 350 ? 300 : 999;
+        const instrKey = instr + '|' + distBucket;
+        if (instr !== lastSpokenInstr || (distBucket <= 150 && distBucket !== lastSpokenDistBucket)) {
+          let phrase = instr;
+          if (nextStepDist > 0 && nextStepDist < 200 && !/Continuez/i.test(instr)) {
+            phrase = 'Dans ' + formatNavDist(nextStepDist) + ', ' + instr;
+          }
+          speakNavInstruction(phrase);
+          lastSpokenDistBucket = distBucket;
+        }
+      }
+
       if (bar && navTotalDist > 0) {
         const pct = Math.min(100, Math.max(0, ((navTotalDist - remain) / navTotalDist) * 100));
         bar.style.width = pct.toFixed(1) + '%';
@@ -4746,6 +4922,7 @@
       if (dDest < arriveM) {
         if (instrEl) instrEl.textContent = 'Vous êtes arrivé !';
         if (iconEl) iconEl.textContent = '🏁';
+        speakNavInstruction('Vous êtes arrivé à destination', { force: true });
         showToast('🏁 Destination atteinte');
         setTimeout(() => stopNavigation(), 2500);
       }
@@ -5010,8 +5187,24 @@
 
       document.getElementById('navBanner')?.classList.add('active');
       document.getElementById('navModeLabel').textContent = mode === 'bike' ? 'Vélo' : mode === 'walk' ? 'Marche' : 'Navigation';
-      document.getElementById('navInstr').textContent = navSteps.length ? stepInstruction(navSteps[0]) : 'Suivez l\'itinéraire';
-      updateNavUi(userLat, userLng);
+      navStepIndex = 0;
+      while (navStepIndex < navSteps.length - 1) {
+        const ct = (navSteps[navStepIndex].instruction || navSteps[navStepIndex].type || '').toLowerCase();
+        if (ct === 'depart') navStepIndex++;
+        else break;
+      }
+      {
+        const s0 = navSteps[navStepIndex] || navSteps[0];
+        let initInstr = s0 ? stepInstruction(s0) : "Suivez l'itinéraire";
+        if (/^Départ\b/i.test(initInstr)) initInstr = (s0 && s0.name) ? ('Continuez sur ' + s0.name) : "Suivez l'itinéraire";
+        document.getElementById('navInstr').textContent = initInstr;
+        const ic = document.getElementById('navTurnIcon');
+        if (ic) {
+          const ic0 = s0 ? stepIcon(s0) : '↑';
+          ic.textContent = ic0 === '▶' ? '↑' : ic0;
+        }
+      }
+      updateNavUi(userLat, userLng)
 
       if (navWatchId != null) navigator.geolocation.clearWatch(navWatchId);
       navWatchId = navigator.geolocation.watchPosition(
@@ -5024,6 +5217,12 @@
       if (map) map.setView([userLat, userLng], 17, { animate: true });
       saveOfflineNavState();
       setOfflineNavBadge(!isAppOnline());
+      updateVoiceButton();
+      {
+        const first = document.getElementById('navInstr')?.textContent;
+        if (first) speakNavInstruction(first, { force: true });
+        else speakNavInstruction('Navigation démarrée. Suivez l\'itinéraire.', { force: true });
+      }
       showToast((mode === 'walk')
         ? (isAppOnline()
             ? '🚶 Navigation à pied — suivez le curseur et la boussole'
@@ -5036,6 +5235,9 @@
     function stopNavigation() {
       navActive = false;
       navRerouting = false;
+      stopNavSpeech();
+      lastSpokenInstr = '';
+      lastSpokenDistBucket = null;
       clearOfflineNavState();
       document.getElementById('navManeuverCard')?.classList.remove('active');
       const bar = document.getElementById('navProgressBar');
@@ -6493,7 +6695,7 @@ function renderRoutes(routes) {
             <div class="route-card" style="margin:0 0 12px;padding:12px 14px;">
               <div style="font-size:12px;color:var(--text-secondary);margin-bottom:10px;line-height:1.4;">Rendu Facebook / Apple / iOS (filtres CSS)</div>
               <div style="display:flex;flex-wrap:wrap;gap:8px;">
-                ${['facebook','apple','ios','vivid','muted','none'].map(n => {
+                ${['clair','pastel','facebook','apple','ios','vivid','muted','sombre','none'].map(n => {
                   const active = (localStorage.getItem('vagvis-map-filter') || 'facebook') === n;
                   return '<button type="button" onclick="setMapFilterPreset(\''+n+'\')" style="border:1px solid '+(active ? 'var(--primary)' : 'var(--border)')+';background:'+(active ? 'var(--primary)' : 'var(--bg-card)')+';color:'+(active ? '#fff' : 'var(--text)')+';font-weight:700;font-size:11px;padding:7px 12px;border-radius:20px;cursor:pointer;">'+n+'</button>';
                 }).join('')}
@@ -7117,6 +7319,10 @@ function renderRoutes(routes) {
             const url = `${base}/api/departures?stop=${encodeURIComponent(stopName)}`;
             const res = await fetch(url, { signal: ctrl.signal });
             clearTimeout(timer);
+            if (res.status === 404) {
+              this.lastSource = 'not-found';
+              return [];
+            }
             if (res.ok) {
               const data = await res.json();
               if (data.departures?.length) {
@@ -7140,6 +7346,12 @@ function renderRoutes(routes) {
             this.lastSource = 'mock-fallback';
           }
         }
+        // Les départs simulés ne concernent que Malmö : pour un autre arrêt, on dit la vérité
+        if (!/^malm[oö]/i.test(String(stopName || '').trim())) {
+          this.lastSource = 'unavailable';
+          this.lastProvider = null;
+          return [];
+        }
         this.lastSource = 'mock';
         this.lastProvider = null;
         return getMockDepartures();
@@ -7149,6 +7361,8 @@ function renderRoutes(routes) {
         if (this.lastSource === 'trafiklab-realtime') return 'Skånetrafiken live · Trafiklab Realtime';
         if (this.lastSource === 'resrobot') return 'Skånetrafiken live · Trafiklab ResRobot';
         if (this.lastSource === 'gtfs') return 'GTFS Skånetrafiken (planifié)';
+        if (this.lastSource === 'not-found') return 'Arrêt introuvable en Skåne — essaie un autre nom';
+        if (this.lastSource === 'unavailable') return 'Départs indisponibles pour cet arrêt pour le moment';
         if (this.lastSource === 'backend-mock') return 'Backend actif — horaires simulés réalistes';
         if (this.lastSource === 'mock-fallback') return 'Backend hors ligne — simulation locale';
         if (this.lastSource === 'mock') {
@@ -7190,14 +7404,35 @@ function renderRoutes(routes) {
       { line: 'Bus 35', dest: 'Klagshamn', type: 'bus', color: '#1d4ed8', baseMin: 16 },
     ];
 
+    let currentDepartureStop = null; // arrêt choisi à la main (null = le plus proche de toi)
+    function submitDepartureSearch() {
+      const el = document.getElementById('depSearchInput');
+      const v = (el && el.value || '').trim();
+      if (v.length < 2) { showToast('Écris au moins 2 lettres'); return; }
+      renderDepartures(v);
+    }
+    function initDepartureSearch() {
+      const dl = document.getElementById('depStopList');
+      const input = document.getElementById('depSearchInput');
+      if (dl) {
+        const names = new Set([].concat(TRANSIT_HUBS.map(h => h.name), SKANE_CITIES.map(c => c.name), SKANE_MORE_TOWNS));
+        dl.innerHTML = [...names].map(n => `<option value="${String(n).replace(/"/g, '&quot;')}"></option>`).join('');
+      }
+      if (input) input.addEventListener('keydown', (e) => { if (e.key === 'Enter') submitDepartureSearch(); });
+    }
     async function renderDepartures(stopName) {
       const list = document.getElementById('departuresList');
       if (!list) return;
-      let stop = stopName;
+      // On ne rafraîchit pas pendant que tu écris dans le champ
+      if (!stopName && document.activeElement && document.activeElement.id === 'depSearchInput') return;
+      if (stopName) currentDepartureStop = stopName;
+      let stop = stopName || currentDepartureStop;
       if (!stop) {
         const hub = nearestTransitHub(userLat, userLng);
         stop = hub.name;
       }
+      const titleEl = document.getElementById('depStopTitle');
+      if (titleEl) titleEl.textContent = stop + ' • Prochains départs';
       list.innerHTML = '<div class="state-message"><div class="spinner"></div><p>Chargement Skånetrafiken…</p></div>';
 
       const deps = await DataService.getDepartures(stop);
@@ -7211,8 +7446,9 @@ function renderRoutes(routes) {
       const hubChips = TRANSIT_HUBS.slice(0, 6).map(h =>
         `<button type="button" onclick="renderDepartures('${h.name.replace(/'/g, "\\'")}')" style="border:1px solid var(--border);background:${h.name===stop?'var(--primary)':'var(--bg-card)'};color:${h.name===stop?'#fff':'var(--text)'};border-radius:20px;padding:6px 10px;font-size:11px;font-weight:700;cursor:pointer;">${h.name}</button>`
       ).join('');
+      const nearChip = `<button type="button" onclick="currentDepartureStop=null;renderDepartures()" style="border:1px solid var(--border);background:var(--bg-card);color:var(--text);border-radius:999px;padding:6px 12px;font-size:12px;font-weight:600;">📍 Près de moi</button>`;
       list.innerHTML = `
-        <div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px;">${hubChips}</div>
+        <div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px;">${nearChip}${hubChips}</div>
         <div style="font-size:12px;color:var(--text-muted);margin-bottom:10px;line-height:1.4;">
           <strong style="color:var(--text);">${stop}</strong> · ${status}
         </div>
@@ -7253,6 +7489,7 @@ function renderRoutes(routes) {
       initMap();
       updateGpsDisplay(userLat, userLng, null, 'default');
       renderFavorites();
+      initDepartureSearch();
       setTimeout(locateUser, 700);
       initOfflineNavListeners();
       setTimeout(() => {
@@ -7293,6 +7530,7 @@ function renderRoutes(routes) {
       document.getElementById('textZoomInBtn')?.addEventListener('click', textZoomIn);
       document.getElementById('textZoomOutBtn')?.addEventListener('click', textZoomOut);
       document.getElementById('satToggle')?.addEventListener('click', toggleSatellite);
+      document.getElementById('lightToggle')?.addEventListener('click', cycleMapLight);
       document.getElementById('trafficToggle')?.addEventListener('click', toggleTraffic);
       document.getElementById('view3dToggle')?.addEventListener('click', toggle3DView);
       update3dButton();
